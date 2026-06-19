@@ -13,7 +13,8 @@ No client mod. No resource pack. No required dependencies. One small, dependency
 > feature-rich mechanic from **[asketmc](https://asketmc.com)** — a Survival RPG server (CIS & EU) where
 > falling trees are one layer of a deeper survival experience, alongside temperature, fishing, dynamic
 > weather events and more custom mechanics. Come play on the server it was built for →
-> **[asketmc.com](https://asketmc.com)** · *(Discord: `discord.gg/your-invite`)*
+> **[asketmc.com](https://asketmc.com)**
+> Discord: https://discord.gg/2MuA3Nv
 
 ---
 
