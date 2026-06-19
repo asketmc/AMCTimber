@@ -4,6 +4,7 @@ import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -203,8 +204,9 @@ final class TimberConfig {
     }
 
     private static Set<Material> parseMaterials(List<String> names) {
+        if (names == null || names.isEmpty()) return Collections.emptySet();  // no Material init for the common case
         Set<Material> set = EnumSet.noneOf(Material.class);
-        if (names != null) for (String n : names) {
+        for (String n : names) {
             Material m = Material.matchMaterial(n);
             if (m != null) set.add(m);
         }

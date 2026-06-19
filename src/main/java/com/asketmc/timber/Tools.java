@@ -33,8 +33,11 @@ final class Tools {
     }
 
     /** Vanilla tier prefix for a material (WOODEN_AXE → "WOODEN"); "" if it matches none (custom tool). */
-    static String tierOf(Material m) {
-        String n = m.name().toUpperCase(Locale.ROOT);
+    static String tierOf(Material m) { return tierOfName(m.name()); }
+
+    /** Tier prefix from a material name — the pure (unit-tested) seam behind {@link #tierOf(Material)}. */
+    static String tierOfName(String materialName) {
+        String n = materialName.toUpperCase(Locale.ROOT);
         for (String t : TIERS) {
             if (n.startsWith(t + "_")) return t;
         }
@@ -54,7 +57,11 @@ final class Tools {
 
     /** True if {@code item} is too weak to fell a tree of {@code logs} logs. */
     static boolean tooWeakFor(ItemStack item, int logs, TimberConfig cfg) {
-        int max = maxLogsFor(item, cfg);
-        return max >= 0 && logs > max;
+        return tooWeak(maxLogsFor(item, cfg), logs);
+    }
+
+    /** Pure gate (unit-tested): too weak iff a finite cap is set and the tree exceeds it. */
+    static boolean tooWeak(int maxLogs, int logs) {
+        return maxLogs >= 0 && logs > maxLogs;
     }
 }

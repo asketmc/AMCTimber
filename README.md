@@ -151,12 +151,26 @@ mvn -B clean package
 Requires JDK 21. All dependencies resolve from public repositories (PaperMC, EngineHub, Glaremasters,
 Maven Central). bStats is shaded and relocated; WorldGuard/Towny are `provided` (compile-only).
 
+### Tests
+
+```bash
+mvn test
+```
+
+Two layers:
+- **Unit tests** (`src/test/java`, JUnit 5) — server-free checks over the pure logic: yield/XP/hits/
+  durability/crush maths, axe-tier gating, species & leaf matching, fall direction, topple transforms,
+  trunk shrink and the progress bar. Fast, and run on every push by CI (`mvn package` runs them).
+- **Runtime self-check** — `/amctimber selftest` on a live server additionally exercises the
+  registry-backed paths (Tag-based log/leaf/axe detection) that require a running server.
+
 ---
 
 ## 🤝 Contributing
 
-Issues and PRs welcome on [GitHub](https://github.com/asketmc/AMCTimber/issues). The plugin ships a
-console-safe self-check — run `/amctimber selftest` and keep it green.
+Issues and PRs welcome on [GitHub](https://github.com/asketmc/AMCTimber/issues). Add or update a JUnit
+test under `src/test/java` for any logic change (`mvn test`), and keep the runtime `/amctimber selftest`
+green too.
 
 ## 📜 License
 

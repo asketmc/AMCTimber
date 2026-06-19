@@ -39,8 +39,11 @@ final class TreeScanner {
      * CRIMSON_STEM → CRIMSON, BAMBOO_BLOCK → BAMBOO. Felling only spreads through ONE species, so a
      * naturally-generated fallen oak log touching a birch trunk can no longer drag the birch down.
      */
-    static String speciesOf(Material m) {
-        String n = m.name();
+    static String speciesOf(Material m) { return speciesOfName(m.name()); }
+
+    /** Wood species from a material name — the pure (unit-tested) seam behind {@link #speciesOf(Material)}. */
+    static String speciesOfName(String name) {
+        String n = name;
         if (n.startsWith("STRIPPED_")) n = n.substring("STRIPPED_".length());
         for (String suffix : new String[]{"_LOG", "_WOOD", "_STEM", "_HYPHAE", "_BLOCK"}) {
             if (n.endsWith(suffix)) return n.substring(0, n.length() - suffix.length());
@@ -50,9 +53,14 @@ final class TreeScanner {
 
     /** Leaves belonging to a species: <SPECIES>_LEAVES, plus azalea canopies on oak trunks. */
     static boolean leafMatchesSpecies(String species, Material leaf) {
-        if (leaf.name().equals(species + "_LEAVES")) return true;
+        return leafMatchesSpeciesName(species, leaf.name());
+    }
+
+    /** Name-based leaf match — the pure (unit-tested) seam behind {@link #leafMatchesSpecies}. */
+    static boolean leafMatchesSpeciesName(String species, String leafName) {
+        if (leafName.equals(species + "_LEAVES")) return true;
         return "OAK".equals(species)
-                && (leaf == Material.AZALEA_LEAVES || leaf == Material.FLOWERING_AZALEA_LEAVES);
+                && (leafName.equals("AZALEA_LEAVES") || leafName.equals("FLOWERING_AZALEA_LEAVES"));
     }
 
     /** True if the leaf block is a natural (vanilla-grown) leaf — placed leaves carry persistent=true. */

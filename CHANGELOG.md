@@ -24,5 +24,6 @@ First public release — extracted and generalised from the internal asketmc bui
   (version-specific particles/sounds resolved at runtime).
 - **bStats metrics** (opt-in; set the plugin id to enable).
 - **Self-check** — `/amctimber selftest` (74 assertions over the pure logic).
+- **Unit test suite** — JUnit 5 (`src/test/java`), 29 server-free tests run by CI via `mvn test`.
 
 [1.0.0]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.0
