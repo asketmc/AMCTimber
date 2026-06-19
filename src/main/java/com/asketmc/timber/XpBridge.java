@@ -36,9 +36,9 @@ final class XpBridge {
 
     void init(Debug debug) {
         if (!present()) {
-            debug.info("Skill XP awards are disabled (xp.enabled=false or mode=none).");
+            debug.full("Skill XP awards are disabled (xp.enabled=false or mode=none).");
         } else {
-            debug.info("Fell drops grant " + skill + " XP via console command: \"" + command + "\".");
+            debug.full("Fell drops grant " + skill + " XP via console command: \"" + command + "\".");
         }
     }
 

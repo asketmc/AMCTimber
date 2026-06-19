@@ -9,8 +9,11 @@ whatever is standing where they land.**
 
 No client mod. No resource pack. No required dependencies. One small, dependency-free jar.
 
-> Built and battle-tested on **[asketmc.com](https://asketmc.com)** — a survival server for the CIS & EU.
-> If you enjoy the plugin, come play on the server it was made for. *(Discord: `discord.gg/your-invite`)*
+> **Inspired by survival games where trees actually fall — and can flatten you.** AMCTimber is a custom,
+> feature-rich mechanic from **[asketmc](https://asketmc.com)** — a Survival RPG server (CIS & EU) where
+> falling trees are one layer of a deeper survival experience, alongside temperature, fishing, dynamic
+> weather events and more custom mechanics. Come play on the server it was built for →
+> **[asketmc.com](https://asketmc.com)** · *(Discord: `discord.gg/your-invite`)*
 
 ---
 
@@ -23,8 +26,10 @@ No client mod. No resource pack. No required dependencies. One small, dependency
 - **Tool-tier scaling** — a wooden axe only fells saplings; you need a **diamond/netherite axe to bring
   down a 2×2 jungle giant**. Fully configurable per tier.
 - **Crush damage** — stand where a giant lands and it flattens you (size-scaled, capped, PvP-safe by default).
-- **Treehouse / log-cabin guard** — a "tree" touching *any* player-placed block (planks, fences, glass,
-  beds, …) is treated as a build and breaks vanilla-style. Your builds are safe.
+- **Your builds are safe** — a "tree" touching *any* player-placed block (planks, fences, glass, beds,
+  stairs, …) is treated as a structure and **never auto-fells**, so you'll never accidentally topple your
+  house or treehouse. Sneak-to-bypass for builders, plus optional **WorldGuard region** & **Towny claim**
+  respect on top.
 - **Species-aware** — felling never spreads across wood types; one oak won't drag a neighbouring birch down.
 - **Skill-XP bridge** — award XP to *any* skill plugin via a configurable command (AuraSkills, mcMMO, a
   native engine, …) with **zero dependency**.

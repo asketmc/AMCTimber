@@ -58,14 +58,16 @@ public final class TimberPlugin extends JavaPlugin implements CommandExecutor {
         // per-second despawn / orphan sweep (global region — Folia-safe)
         sched.globalTimer(() -> store.sweep(fx, sched), 20L, 20L);
         startMetrics();
-        debug.info("AMCTimber ready — fell trees by chopping them ("
-                + (cfg.enabled ? "enabled" : "DISABLED") + ", stump=" + cfg.leaveStump
-                + ", platform=" + (Sched.FOLIA ? "Folia" : "Paper") + "). /amctimber");
+        String hooks = protection.hooks();
+        debug.info("AMCTimber v" + getPluginMeta().getVersion() + " enabled — "
+                + (Sched.FOLIA ? "Folia" : "Paper") + ", felling " + (cfg.enabled ? "on" : "OFF")
+                + (hooks.isEmpty() ? "" : ", hooks: " + hooks) + ".");
     }
 
     @Override
     public void onDisable() {
         if (store != null) store.shutdown();
+        if (debug != null) debug.info("AMCTimber v" + getPluginMeta().getVersion() + " disabled.");
     }
 
     /** (Re)build everything derived from config.yml + messages.yml. Keeps store + manager state intact. */
@@ -76,7 +78,7 @@ public final class TimberPlugin extends JavaPlugin implements CommandExecutor {
         this.fx = new Fx(cfg.sounds, cfg.particles, cfg.fallingLeaves);
         this.xpBridge = new XpBridge(getLogger(), sched, cfg);
         this.xpBridge.init(debug);
-        this.protection = new Protection(getLogger(), cfg.respectBuilds);
+        this.protection = new Protection(cfg.respectBuilds);
         this.protection.init();
         this.scanner = new TreeScanner(cfg);
         reloadMessages();

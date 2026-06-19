@@ -4,8 +4,6 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 
-import java.util.logging.Logger;
-
 /**
  * Composes the WorldGuard + Towny soft bridges into one predicate: "may this player fell this whole tree?".
  * The base block's break was already permitted by vanilla (we listen ignoreCancelled), so this only has to
@@ -16,13 +14,11 @@ import java.util.logging.Logger;
  * <p>Null-safe and fail-open by construction (see the bridges), so {@link #canFell} is also unit-tested.
  */
 final class Protection {
-    private final WorldGuardBridge wg;
-    private final TownyBridge towny;
+    private final WorldGuardBridge wg = new WorldGuardBridge();
+    private final TownyBridge towny = new TownyBridge();
     private final boolean respectBuilds;
 
-    Protection(Logger log, boolean respectBuilds) {
-        this.wg = new WorldGuardBridge(log);
-        this.towny = new TownyBridge(log);
+    Protection(boolean respectBuilds) {
         this.respectBuilds = respectBuilds;
     }
 
@@ -32,6 +28,14 @@ final class Protection {
     }
 
     boolean active() { return respectBuilds && (wg.present() || towny.present()); }
+
+    /** Compact one-line hook summary for the enable log, e.g. "WorldGuard+Towny" (empty when none). */
+    String hooks() {
+        StringBuilder sb = new StringBuilder();
+        if (wg.present()) sb.append("WorldGuard");
+        if (towny.present()) { if (sb.length() > 0) sb.append("+"); sb.append("Towny"); }
+        return sb.toString();
+    }
 
     /** True if the player may break a single block at loc (used by the per-block path + tests). */
     boolean canBreak(Player player, Location loc) {

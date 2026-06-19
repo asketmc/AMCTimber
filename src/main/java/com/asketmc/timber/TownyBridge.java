@@ -8,28 +8,15 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 
-import java.util.logging.Logger;
-
 /**
  * Soft Towny bridge. {@link #canDestroy} answers "may this player destroy a block here?" using Towny's
  * own cached DESTROY permission (wilderness is always allowed). Read-only, main-thread. Fail-open: absent
- * Towny or any API error returns {@code true}.
+ * Towny or any API error returns {@code true}. Presence is reported once in the enable line, so silent.
  */
 final class TownyBridge {
-    private final Logger log;
     private boolean present;
 
-    TownyBridge(Logger log) { this.log = log; }
-
-    void init() {
-        if (Bukkit.getPluginManager().getPlugin("Towny") == null) {
-            log.info("Towny not present — claim checks skipped (fail-open).");
-            present = false;
-            return;
-        }
-        present = true;
-        log.info("Towny present — felling honours town DESTROY permission.");
-    }
+    void init() { present = Bukkit.getPluginManager().getPlugin("Towny") != null; }
 
     boolean present() { return present; }
 

@@ -12,12 +12,18 @@ stands where they land.
 
 **No client mod. No resource pack. No required dependencies. One small jar.**
 
+**Inspired by survival games where trees actually fall — and can flatten you.** AMCTimber is a custom,
+feature-rich mechanic from **[asketmc](https://asketmc.com)** — a Survival RPG (CIS & EU) where falling
+trees are one layer of a deeper survival experience, alongside **temperature, fishing, dynamic weather
+events** and more custom mechanics. Come chop a forest with us → **https://asketmc.com**
+
 ## Features
 - 🌳 **Whole-tree topple** with a real falling animation (vanilla Display entities — no lag, no client mod)
 - 🪵 **Stump + downed trunk** you re-chop for logs (reduced yield — finish the job)
 - 🪓 **Tool-tier scaling** — wooden axe = saplings; **diamond/netherite = 2×2 jungle giants**
 - 💥 **Crush damage** — don't stand where it lands
-- 🏠 **Treehouse/cabin guard** — builds never auto-fell; **species-aware** spreading
+- 🏠 **Your builds are safe** — anything touching a player-placed block never auto-fells (no accidentally
+  chopping down your house/treehouse); **species-aware**; optional WorldGuard/Towny respect
 - ⭐ **Skill-XP bridge** to *any* skill plugin (AuraSkills, mcMMO, …) via a configurable command
 - 🌍 **EN + RU** built in (MiniMessage, fully editable), auto-localised item names
 - 🧵 **Folia-native**, and **zero entity bloat** (everything ephemeral, capped, swept)

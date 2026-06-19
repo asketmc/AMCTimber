@@ -11,29 +11,16 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
-import java.util.logging.Logger;
-
 /**
  * Soft WorldGuard bridge. {@link #canBuild} answers "may this player break a block here?" by delegating
  * to WG's own {@code testBuild(BUILD)} query (which already honours region membership and the wg bypass
  * permission). Read-only — no synthetic events, no side effects. Fail-open: if WG is absent or the API
- * throws, we return {@code true} and let the already-permitted base break stand for the rest of the tree.
+ * throws, we return {@code true}. Presence is reported once in the plugin's enable line, so this is silent.
  */
 final class WorldGuardBridge {
-    private final Logger log;
     private boolean present;
 
-    WorldGuardBridge(Logger log) { this.log = log; }
-
-    void init() {
-        if (Bukkit.getPluginManager().getPlugin("WorldGuard") == null) {
-            log.info("WorldGuard not present — region checks skipped (fail-open).");
-            present = false;
-            return;
-        }
-        present = true;
-        log.info("WorldGuard present — felling honours region BUILD permission.");
-    }
+    void init() { present = Bukkit.getPluginManager().getPlugin("WorldGuard") != null; }
 
     boolean present() { return present; }
 
