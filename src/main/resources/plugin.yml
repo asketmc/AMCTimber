@@ -1,0 +1,22 @@
+name: AMCTimber
+version: 1.0.0
+main: com.asketmc.timber.TimberPlugin
+api-version: '1.20'
+author: asketmc
+description: Valheim-style tree felling — chop a tree and it topples leaving a stump; re-chop the felled trunk for its logs.
+website: https://github.com/asketmc/AMCTimber
+folia-supported: true
+softdepend: [WorldGuard, WorldEdit, Towny]
+commands:
+  amctimber:
+    description: Tree-felling admin / diagnostics
+    usage: /amctimber reload | selftest | info | test fell <x> <y> <z> [player] | test break <x> <y> <z> <player> [sneak] | test attack <player> | test use <player> | test chop <player> [hits]
+    aliases: [timber, amct]
+    permission: amctimber.admin
+permissions:
+  amctimber.admin:
+    description: Manage / diagnose tree felling
+    default: op
+  amctimber.use:
+    description: Trees topple for this player (revoke to give someone vanilla breaking)
+    default: true

@@ -1,0 +1,107 @@
+# ============================================================================
+#  AMCTimber — Valheim-style tree felling
+#  Chop a tree's base and the whole section above the cut topples, leaving a
+#  stump. Re-chop the downed trunk for its logs (reduced yield, must chop fully).
+#
+#  Reload with /amctimber reload. Diagnose with /amctimber info and /amctimber selftest.
+#  Works on Paper / Purpur / Pufferfish / Folia, MC 1.20.6 -> 1.21.x.
+# ============================================================================
+
+# Console verbosity: off (warnings only) | info (lifecycle) | full (a line per fell — diagnostics)
+debug: info
+
+enabled: true
+worlds: []                 # empty = all worlds; else a whitelist of world names, e.g. [world, world_nether]
+require-axe: true          # only an axe in hand triggers a fell (see "axes" below for what counts)
+allow-creative: false      # creative players break logs vanilla (no ambush-toppling of builds)
+
+bypass:
+  sneak: true              # sneaking + breaking a log = vanilla single-block break (builder bypass)
+
+# What counts as an axe ------------------------------------------------------
+axes:
+  use-vanilla-tag: true    # every vanilla axe (wood..netherite) counts
+  extra-items: []          # additional materials that also count as an axe, e.g. [NETHERITE_HOE, GOLDEN_PICKAXE]
+
+# Tool-tier scaling: how big a tree each axe tier may fell -------------------
+# A wooden axe drops saplings; only a diamond/netherite axe brings down a 2x2
+# jungle giant. Size is measured in logs. -1 = unlimited.
+tool-scaling:
+  enabled: true
+  too-weak-action: vanilla # vanilla = break the single block as normal | cancel = do nothing
+  default-max: -1          # axes matching none of the tiers below (custom/modded tools) — -1 = unlimited
+  tiers:
+    WOODEN: 12             # saplings & shrubs only
+    GOLDEN: 12             # fast but fragile — same reach as wood
+    STONE: 30              # ordinary oaks / birches
+    IRON: 120              # large spruce, dark oak, acacia
+    DIAMOND: 600           # giants: 2x2 jungle / spruce
+    NETHERITE: -1          # anything
+
+detection:
+  min-tree-height: 4       # min logs (incl. the stump block) to count as a tree
+  max-tree-blocks: 1500    # hard BFS cap (logs + leaves)
+  leaf-attach-radius: 5    # leaves within this many blocks of a log are part of the canopy
+  min-natural-leaves: 8    # min natural (persistent=false) leaves to confirm a tree (anti log-build)
+  same-species: true       # felling spreads only through ONE wood type; azalea canopies count as oak
+  respect-builds: true     # honour WorldGuard / Towny build permission before felling (if installed)
+  wild-only: true          # a "tree" touching ANY player-placed block (planks/fence/glass/door/bed/slab/
+                           # stairs/wool/torch/...) is treated as a STRUCTURE and never auto-felled — it
+                           # breaks block-by-block like vanilla. Protects log cabins & treehouses.
+  extra-natural: []        # escape hatch: extra block names to also count as natural, e.g. [TUFF, COBBLESTONE]
+
+animation:
+  creak-ticks: 5           # pre-fall lean + wooden groan (0 = topple immediately)
+  fall-duration-ticks: 26  # ~1.3s topple
+  bounce-ticks: 5          # settle/overshoot on landing
+  fall-rest-degrees: 88    # stop shy of 90 so the trunk rests on the ground
+  overshoot-degrees: 3     # tiny overshoot before settling back to rest
+  max-display-entities: 400 # per-fell cap (leaves decimated to fit)
+  max-concurrent-fells: 8  # global in-flight cap
+  view-range: 1.2          # display view-range multiplier
+
+trunk:
+  leave-stump: true        # the axed block stays in the world (Valheim stump); cut anywhere on the trunk
+  hits-to-fell: 3          # base axe hits on the downed trunk before it yields...
+  hits-per-log: 0.15       # ...plus this per toppled log, so giants take real work
+  max-hits: 28             # hard cap on required chops (Efficiency still speeds each swing up)
+  chop-cooldown-ticks: 7   # min ticks between counted chops per player (anti spam-click)
+  log-yield-multiplier: 0.8 # logs dropped = round(toppled log count * this); must chop fully
+  leaf-loot: true          # the canopy drops its vanilla loot (saplings/sticks/apples) when it lands
+  despawn-seconds: 300     # idle downed trunk auto-cleans after this (every chop refreshes the timer)
+  owner-lock: false        # false = anyone can finish chopping a downed trunk
+
+# How much durability felling/chopping costs the axe (Unbreaking applies) -----
+durability:
+  per-fell-log: 0.25       # axe damage on fell = ceil(toppled logs * this)
+  per-chop-hit: 1          # axe damage per counted chop on the downed trunk
+
+crush:                     # Valheim-style: the slamming trunk crushes whatever stands in its landing path
+  enabled: true
+  base-damage: 6.0         # damage floor on impact
+  per-log-damage: 0.4      # + this per toppled log (momentum proxy) — a giant flattens you
+  max-damage: 20.0         # cap (20 = a one-shot on an unarmored player, like Valheim)
+  radius: 1.6              # how close to the landing line you must be to get hit
+  hit-players: true        # the woodcutter gets crushed if they stand where it falls
+  hit-mobs: true           # mobs caught under it take the hit too
+  pvp: false               # also crush players OTHER than the feller (false = no easy grief in safe zones)
+
+# Skill XP via a console command — bridges to ANY skill engine, no dependency. -
+# Placeholders: %player% %skill% %amount%. mode: command | none.
+xp:
+  enabled: true
+  mode: command
+  per-log: 2               # XP granted per log yielded
+  skill: foraging          # the skill name passed to %skill%
+  command: "skillsadmin xp %player% %skill% %amount%"
+  # Examples for other engines:
+  #   AuraSkills: "aureliumskills xp %player% %skill% %amount%"
+  #   mcMMO:      "mcmmo addxp %player% Woodcutting %amount%"   (set skill: Woodcutting)
+
+fx:
+  sounds: true             # creak, fall rustle, layered impact, rising chop pitch, break clatter
+  particles: true          # impact dust line (log + ground material), gusts, canopy debris
+  falling-leaves: true     # tinted leaves drifting off the canopy mid-fall
+
+# Anonymous usage stats via bStats (https://bstats.org). Helps the author see adoption.
+metrics: true

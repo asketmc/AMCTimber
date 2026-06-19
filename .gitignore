@@ -1,0 +1,20 @@
+# Maven
+target/
+dependency-reduced-pom.xml
+*.flattened-pom.xml
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+*.code-workspace
+
+# OS / misc
+.DS_Store
+Thumbs.db
+*.log

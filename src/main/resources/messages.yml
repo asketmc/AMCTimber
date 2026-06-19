@@ -1,0 +1,34 @@
+# ============================================================================
+#  AMCTimber messages
+#  Formatting: MiniMessage  ->  https://docs.advntr.dev/minimessage/format.html
+#  (e.g. <green>, <gray>, <#ff8800>, <bold>). Set a message to "" to hide it.
+#
+#  Two locales ship; each player sees one based on "locale-mode":
+#    client = their Minecraft client language (ru -> ru, everything else -> en)
+#    en     = force English for everyone
+#    ru     = force Russian for everyone
+#
+#  Component placeholders (inserted by the plugin):
+#    <item>       localized item name (e.g. "Oak Log")     — used in: yield
+#    <axe>        localized axe name                        — used in: too-weak
+#    <bar>        the coloured progress bar                 — used in: progress
+#    <xp_suffix>  the rendered XP bonus, or nothing         — used in: yield
+#  Text placeholders: <logs> <xp> <progress> <required>
+# ============================================================================
+locale-mode: client
+
+en:
+  need-axe: "<yellow>You need an axe to chop this trunk"
+  owner-locked: "<yellow>Another lumberjack felled this tree"
+  too-weak: "<yellow>Your <gray><axe></gray> is too weak to fell a tree this big"
+  progress: "<bar> <gray><progress>/<required></gray>"
+  yield: "<green>+<logs></green> <white><item></white><xp_suffix>"
+  xp-suffix: "<aqua>  ✦ +<xp> XP</aqua>"
+
+ru:
+  need-axe: "<yellow>Нужен топор, чтобы разделать бревно"
+  owner-locked: "<yellow>Это дерево срубил другой дровосек"
+  too-weak: "<yellow>Ваш <gray><axe></gray> слишком слаб, чтобы свалить такое большое дерево"
+  progress: "<bar> <gray><progress>/<required></gray>"
+  yield: "<green>+<logs></green> <white><item></white><xp_suffix>"
+  xp-suffix: "<aqua>  ✦ +<xp> XP</aqua>"

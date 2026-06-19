@@ -1,0 +1,64 @@
+package com.asketmc.timber;
+
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.entity.Player;
+
+import java.util.logging.Logger;
+
+/**
+ * Composes the WorldGuard + Towny soft bridges into one predicate: "may this player fell this whole tree?".
+ * The base block's break was already permitted by vanilla (we listen ignoreCancelled), so this only has to
+ * catch the edge case of a tree straddling a protection boundary. We check every <em>log</em> (not leaves —
+ * leaves are low-value and attached to logs we're allowed to break); if any log is protected we abort the
+ * fell entirely (clean all-or-nothing) and the player just breaks the base vanilla-style.
+ *
+ * <p>Null-safe and fail-open by construction (see the bridges), so {@link #canFell} is also unit-tested.
+ */
+final class Protection {
+    private final WorldGuardBridge wg;
+    private final TownyBridge towny;
+    private final boolean respectBuilds;
+
+    Protection(Logger log, boolean respectBuilds) {
+        this.wg = new WorldGuardBridge(log);
+        this.towny = new TownyBridge(log);
+        this.respectBuilds = respectBuilds;
+    }
+
+    void init() {
+        wg.init();
+        towny.init();
+    }
+
+    boolean active() { return respectBuilds && (wg.present() || towny.present()); }
+
+    /** True if the player may break a single block at loc (used by the per-block path + tests). */
+    boolean canBreak(Player player, Location loc) {
+        return canBreak(player, loc, loc.getBlock().getType());
+    }
+
+    /** True if the player may break a block of {@code material} at loc (WorldGuard BUILD + Towny DESTROY). */
+    private boolean canBreak(Player player, Location loc, Material material) {
+        if (!respectBuilds) return true;
+        return wg.canBuild(player, loc) && towny.canDestroy(player, loc, material);
+    }
+
+    /**
+     * True only if the player may break the WHOLE tree — the cut/base block AND every toppling log. All-or-
+     * nothing: a tree rooted in (or straddling) a WorldGuard region or Towny claim the player can't build in
+     * is never dragged down. "Can't interact here → no fell." Beds and other player structures are caught
+     * separately, before this, by the wild-only block guard in {@link TreeScanner}.
+     */
+    boolean canFell(Player player, TreeShape shape) {
+        if (!respectBuilds) return true;
+        if (!wg.present() && !towny.present()) return true;
+        Location base = new Location(shape.world, shape.cutX, shape.cutY, shape.cutZ);
+        if (!canBreak(player, base, shape.baseMaterial)) return false;
+        for (TreeShape.Node n : shape.logs) {
+            Location loc = new Location(shape.world, n.x, n.y, n.z);
+            if (!canBreak(player, loc, n.data.getMaterial())) return false;
+        }
+        return true;
+    }
+}

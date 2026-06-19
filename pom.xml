@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.asketmc</groupId>
+  <artifactId>amctimber</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+  <name>AMCTimber</name>
+  <description>Valheim-style tree felling: chop a tree's base and the whole tree topples, then re-chop the felled trunk for logs.</description>
+  <url>https://github.com/asketmc/AMCTimber</url>
+
+  <licenses>
+    <license>
+      <name>GNU General Public License v3.0</name>
+      <url>https://www.gnu.org/licenses/gpl-3.0.txt</url>
+    </license>
+  </licenses>
+
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- Compiled against the OLDEST supported API so one jar runs 1.20.6 -> 1.21.x.
+         Version-specific symbols (new particles/materials) are resolved by name at runtime. -->
+    <paper.version>1.20.6-R0.1-SNAPSHOT</paper.version>
+  </properties>
+
+  <repositories>
+    <repository><id>papermc</id><url>https://repo.papermc.io/repository/maven-public/</url></repository>
+    <repository><id>enginehub</id><url>https://maven.enginehub.org/repo/</url></repository>
+    <repository><id>glaremasters</id><url>https://repo.glaremasters.me/repository/towny/</url></repository>
+  </repositories>
+
+  <dependencies>
+    <!-- Paper API: provided by the server at runtime. Paper's Folia-compatible scheduler API
+         (region/global/entity schedulers, available since 1.20.1) is what makes this Folia-ready
+         with no extra dependency. -->
+    <dependency>
+      <groupId>io.papermc.paper</groupId>
+      <artifactId>paper-api</artifactId>
+      <version>${paper.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- JOML (3D math) ships with the server (Paper bundles it since 1.19.4) — provided, never shaded. -->
+    <dependency>
+      <groupId>org.joml</groupId>
+      <artifactId>joml</artifactId>
+      <version>1.10.5</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- Optional, soft protection integrations. provided scope keeps them (and their transitives) OUT of
+         our jar; every call is guarded so the plugin loads and runs fine when they are absent (fail-open).
+         worldguard-bukkit pulls worldguard-core + worldedit transitively, where the bridge's classes live. -->
+    <dependency>
+      <groupId>com.sk89q.worldguard</groupId>
+      <artifactId>worldguard-bukkit</artifactId>
+      <version>7.0.9</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.palmergames.bukkit.towny</groupId>
+      <artifactId>towny</artifactId>
+      <version>0.100.1.0</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- bStats: anonymous usage metrics. Shaded + relocated (required by bStats rules). -->
+    <dependency>
+      <groupId>org.bstats</groupId>
+      <artifactId>bstats-bukkit</artifactId>
+      <version>3.1.0</version>
+      <scope>compile</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>AMCTimber-${project.version}</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.5.3</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+            <configuration>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <relocations>
+                <relocation>
+                  <pattern>org.bstats</pattern>
+                  <shadedPattern>com.asketmc.timber.lib.bstats</shadedPattern>
+                </relocation>
+              </relocations>
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                    <exclude>META-INF/MANIFEST.MF</exclude>
+                    <exclude>module-info.class</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
