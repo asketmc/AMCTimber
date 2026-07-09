@@ -1,5 +1,5 @@
 name: AMCTimber
-version: 1.0.2
+version: 1.0.3
 main: com.asketmc.timber.TimberPlugin
 api-version: '1.20'
 author: asketmc

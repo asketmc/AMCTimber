@@ -12,7 +12,7 @@ server plugin portfolio project.
 | OSV Scanner | Recursive OSV scan on push, PR, and schedule. Maven transitive resolution is disabled because Paper API is a provided SNAPSHOT dependency; transitive evidence is covered by SBOM generation. | implemented |
 | Semgrep | Java and security-audit Semgrep scan with SARIF upload | implemented |
 | OpenSSF Scorecard | Scheduled and push-triggered Scorecard workflow with published results | implemented |
-| SBOM | SPDX SBOM generation via checksum-verified Syft download and CycloneDX SBOM generation via Maven plugin, both in CI and releases | implemented |
+| SBOM | SPDX SBOM generation via `spdx-maven-plugin` and CycloneDX SBOM generation via Maven plugin, both in CI and releases | implemented |
 | Release checksums | `SHA256SUMS.txt` release asset | implemented |
 | Sigstore/cosign | Keyless `cosign sign-blob` bundles for release assets | implemented |
 | Artifact attestations | GitHub artifact attestations for release assets | implemented |
