@@ -24,7 +24,6 @@ jar tf "$jar_file" > "$tmp_listing"
 
 entry_count="$(wc -l < "$tmp_listing" | tr -d ' ')"
 plugin_yml_count="$(grep -c '^plugin.yml$' "$tmp_listing" || true)"
-relocated_bstats_count="$(grep -c '^com/asketmc/timber/lib/bstats/' "$tmp_listing" || true)"
 
 grep -E -i '(^|/).*\.(dll|so|dylib|exe|bat|cmd|ps1|vbs|sh|jar)$' "$tmp_listing" > "$tmp_blocked" || true
 if [[ -s "$tmp_blocked" ]]; then
@@ -73,7 +72,6 @@ fi
   echo "script_files: none"
   echo "nested_jars: none"
   echo "shaded_signature_metadata: none"
-  echo "relocated_bstats_entries: $relocated_bstats_count"
 } > "$report_file"
 
 cat "$report_file"

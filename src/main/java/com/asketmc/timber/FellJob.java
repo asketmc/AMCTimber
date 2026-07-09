@@ -186,6 +186,7 @@ final class FellJob {
     }
 
     private void land() {
+        try {
         TimberConfig cfg = plugin.cfg();
         Quaternionf qRest = ToppleAnimator.quat(axis, Math.toRadians(cfg.fallRestDegrees));
 
@@ -259,6 +260,8 @@ final class FellJob {
         plugin.debug().full("toppled + trunk spawned: logs=" + shape.logCount()
                 + " yield=" + yield + " hits=" + hits + " hitboxes=" + hitboxes.size()
                 + " leafLoot=" + leafLoot.size());
-        mgr.release(cutKey);
+        } finally {
+            mgr.release(cutKey);
+        }
     }
 }

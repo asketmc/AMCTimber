@@ -31,47 +31,48 @@ jobs:
       - name: Build release jar
         run: mvn -B -ntp clean verify
       - name: Prepare release artifacts
-        run: |
-          set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          jar="target/AMCTimber-${version}.jar"
-          test -f "$jar"
-          mkdir -p release
-          cp "$jar" "release/AMCTimber-${version}.jar"
-          bash scripts/check-release-jar.sh "release/AMCTimber-${version}.jar" release/jar-safety-report.txt
-      - name: SPDX SBOM
-        run: |
-          set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          mvn -B -ntp -DskipTests org.spdx:spdx-maven-plugin:1.0.4:createSPDX
-          cp "target/site/com.asketmc_amctimber-${version}.spdx.json" release/sbom.spdx.json
-          test -s release/sbom.spdx.json
-      - name: CycloneDX SBOM
-        run: |
-          set -euo pipefail
-          mvn -B -ntp -DskipTests org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeAggregateBom \
-            -DoutputDirectory=release \
-            -DoutputName=sbom \
-            -DoutputFormat=json
-          mv release/sbom.json release/sbom.cdx.json
-          test -f release/sbom.cdx.json
-      - name: Create checksums
-        run: |
-          set -euo pipefail
-          (cd release && sha256sum *.jar sbom.*.json jar-safety-report.txt > SHA256SUMS.txt)
+        run: bash scripts/prepare-release-assets.sh "${GITHUB_REF_NAME#v}" release
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
       - name: Sign release artifacts
         run: |
           set -euo pipefail
-          for artifact in release/*; do
+          version="${GITHUB_REF_NAME#v}"
+          artifacts=(
+            "release/AMCTimber-${version}.jar"
+            "release/SHA256SUMS.txt"
+            "release/sbom.spdx.json"
+            "release/sbom.cdx.json"
+            "release/jar-safety-report.txt"
+          )
+          for artifact in "${artifacts[@]}"; do
             cosign sign-blob --yes --bundle "${artifact}.sigstore.json" "$artifact"
           done
       - name: Upload release assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${GITHUB_REF_NAME}" release/* --clobber
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          assets=(
+            "release/AMCTimber-${version}.jar"
+            "release/AMCTimber-${version}.jar.sigstore.json"
+            "release/SHA256SUMS.txt"
+            "release/SHA256SUMS.txt.sigstore.json"
+            "release/sbom.spdx.json"
+            "release/sbom.spdx.json.sigstore.json"
+            "release/sbom.cdx.json"
+            "release/sbom.cdx.json.sigstore.json"
+            "release/jar-safety-report.txt"
+            "release/jar-safety-report.txt.sigstore.json"
+          )
+          gh release upload "${GITHUB_REF_NAME}" "${assets[@]}"
       - name: Attest release artifacts
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with:
-          subject-path: "release/*"
+          subject-path: |
+            release/AMCTimber-*.jar
+            release/SHA256SUMS.txt
+            release/sbom.spdx.json
+            release/sbom.cdx.json
+            release/jar-safety-report.txt

@@ -3,6 +3,25 @@
 All notable changes to AMCTimber are documented here. This project follows Semantic Versioning and the
 Keep a Changelog format.
 
+## [1.0.4] - 2026-07-09
+
+### Changed
+
+- Removed the disabled bStats stub and shaded dependency so the release jar has no bundled runtime
+  libraries.
+- Replaced registry-based Semgrep scanning with a pinned engine and committed low-noise local rules.
+- Added release dry-run validation for version consistency, jar safety, checksums, and SPDX/CycloneDX
+  SBOM generation before publishing a GitHub Release.
+
+### Fixed
+
+- Fixed the OpenSSF Scorecard action pin to use the commit object for `v2.4.3`, not the annotated tag
+  object.
+- Hardened release upload/signing so existing release assets are not overwritten and only primary release
+  evidence artifacts are signed.
+- Added upper bounds for expensive config values and ensured active fell slots are released on startup or
+  landing failures.
+
 ## [1.0.3] - 2026-07-09
 
 ### Fixed
@@ -54,6 +73,7 @@ First public release, extracted and generalised from the internal asketmc build.
 - `/amctimber selftest`.
 - JUnit 5 server-free unit test suite.
 
+[1.0.4]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.4
 [1.0.3]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.3
 [1.0.2]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.2
 [1.0.1]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.1

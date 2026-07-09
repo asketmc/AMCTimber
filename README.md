@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/asketmc/AMCTimber/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/asketmc/AMCTimber/actions/workflows/build.yml)
 [![CodeQL](https://github.com/asketmc/AMCTimber/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/asketmc/AMCTimber/actions/workflows/codeql.yml)
-[![Dependency Review](https://github.com/asketmc/AMCTimber/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/asketmc/AMCTimber/actions/workflows/dependency-review.yml)
 [![OSV Scanner](https://github.com/asketmc/AMCTimber/actions/workflows/osv-scanner.yml/badge.svg?branch=main)](https://github.com/asketmc/AMCTimber/actions/workflows/osv-scanner.yml)
 [![Semgrep](https://github.com/asketmc/AMCTimber/actions/workflows/semgrep.yml/badge.svg?branch=main)](https://github.com/asketmc/AMCTimber/actions/workflows/semgrep.yml)
 [![OpenSSF Scorecard](https://github.com/asketmc/AMCTimber/actions/workflows/scorecard.yml/badge.svg?branch=main)](https://github.com/asketmc/AMCTimber/actions/workflows/scorecard.yml)
@@ -17,7 +16,8 @@ leaves a stump behind, just like Valheim. The downed trunk lies on the ground an
 again** for its logs, so harvesting a forest *feels* like work. Giants come crashing down and **crush
 whatever is standing where they land.**
 
-No client mod. No resource pack. No required dependencies. One small, dependency-free jar.
+No client mod. No resource pack. No required external runtime plugins. One small jar with no shaded
+runtime libraries.
 
 > **Inspired by survival games where trees actually fall — and can flatten you.** AMCTimber is a custom,
 > feature-rich mechanic from **[asketmc](https://asketmc.com)** — a Survival RPG server (CIS & EU) where
@@ -64,8 +64,9 @@ No client mod. No resource pack. No required dependencies. One small, dependency
 | **Spigot** | ❌ not supported (the plugin uses modern Display/Interaction entities + Adventure) |
 | **Dependencies** | none required; **WorldGuard** & **Towny** are optional, fail-open integrations |
 
-> Built against the 1.20.6 API and runtime-tested on the latest 1.21.x. Version-specific particles/sounds
-> are resolved at runtime, so one jar behaves correctly across the whole range.
+> Built against the 1.20.6 API and intended for 1.20.6 through current 1.21.x Paper-family servers.
+> Public CI is server-free Maven/JUnit verification; operators can run `/amctimber selftest` on a live
+> server to verify runtime registry-backed paths.
 
 ---
 
@@ -163,7 +164,8 @@ mvn -B -ntp clean verify
 ```
 
 Requires JDK 21. All dependencies resolve from public repositories (PaperMC, EngineHub, Glaremasters,
-Maven Central). bStats is shaded and relocated; WorldGuard/Towny are `provided` (compile-only).
+Maven Central). WorldGuard/Towny are `provided` (compile-only) optional integrations and are not shaded
+into the release jar.
 
 ### Tests
 
@@ -182,6 +184,7 @@ Two layers:
 
 CI and release automation provide evidence for:
 - Maven verify and jar artifact upload.
+- Release dry-run validation for version consistency, jar safety, checksums and SBOMs before publishing.
 - CodeQL, Dependency Review, Dependabot, OSV Scanner, Semgrep and OpenSSF Scorecard.
 - SPDX and CycloneDX SBOM generation.
 - Release checksums, Sigstore/cosign keyless signatures and GitHub artifact attestations.

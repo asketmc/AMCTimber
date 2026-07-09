@@ -40,7 +40,7 @@ tool-scaling:
 
 detection:
   min-tree-height: 4       # min logs (incl. the stump block) to count as a tree
-  max-tree-blocks: 1500    # hard BFS cap (logs + leaves)
+  max-tree-blocks: 1500    # hard BFS cap (logs + leaves); clamped to 50..5000
   leaf-attach-radius: 5    # leaves within this many blocks of a log are part of the canopy
   min-natural-leaves: 8    # min natural (persistent=false) leaves to confirm a tree (anti log-build)
   same-species: true       # felling spreads only through ONE wood type; azalea canopies count as oak
@@ -56,8 +56,8 @@ animation:
   bounce-ticks: 5          # settle/overshoot on landing
   fall-rest-degrees: 88    # stop shy of 90 so the trunk rests on the ground
   overshoot-degrees: 3     # tiny overshoot before settling back to rest
-  max-display-entities: 400 # per-fell cap (leaves decimated to fit)
-  max-concurrent-fells: 8  # global in-flight cap
+  max-display-entities: 400 # per-fell cap, clamped to 16..1000 (leaves decimated to fit)
+  max-concurrent-fells: 8  # global in-flight cap, clamped to 1..32
   view-range: 1.2          # display view-range multiplier
 
 trunk:
@@ -68,7 +68,7 @@ trunk:
   chop-cooldown-ticks: 7   # min ticks between counted chops per player (anti spam-click)
   log-yield-multiplier: 0.8 # logs dropped = round(toppled log count * this); must chop fully
   leaf-loot: true          # the canopy drops its vanilla loot (saplings/sticks/apples) when it lands
-  despawn-seconds: 300     # idle downed trunk auto-cleans after this (every chop refreshes the timer)
+  despawn-seconds: 300     # idle downed trunk auto-cleans after this; clamped to 10..3600
   owner-lock: false        # false = anyone can finish chopping a downed trunk
 
 # How much durability felling/chopping costs the axe (Unbreaking applies) -----
@@ -87,6 +87,7 @@ crush:                     # Valheim-style: the slamming trunk crushes whatever 
   pvp: false               # also crush players OTHER than the feller (false = no easy grief in safe zones)
 
 # Skill XP via a console command — bridges to ANY skill engine, no dependency. -
+# The command template is trusted server-operator config, not player-provided input.
 # Placeholders: %player% %skill% %amount%. mode: command | none.
 xp:
   enabled: true
@@ -102,6 +103,3 @@ fx:
   sounds: true             # creak, fall rustle, layered impact, rising chop pitch, break clatter
   particles: true          # impact dust line (log + ground material), gusts, canopy debris
   falling-leaves: true     # tinted leaves drifting off the canopy mid-fall
-
-# Anonymous usage stats via bStats (https://bstats.org). Helps the author see adoption.
-metrics: true
