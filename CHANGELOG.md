@@ -13,6 +13,8 @@ Keep a Changelog format.
   report.
 - Added a runtime-surface gate for process execution, native loading, dynamic classloading, hidden
   reflection and runtime network API references.
+- Added JaCoCo coverage, P0 tagged tests, a P0 test matrix and PIT mutation testing for the current
+  pure-core QA gate.
 
 ## [1.0.4] - 2026-07-09
 

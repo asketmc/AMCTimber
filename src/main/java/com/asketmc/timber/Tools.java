@@ -27,9 +27,9 @@ final class Tools {
     static boolean isAxe(ItemStack item, TimberConfig cfg) {
         if (item == null) return false;
         Material m = item.getType();
-        if (m.isAir()) return false;
-        if (cfg.axeUseVanillaTag && Tag.ITEMS_AXES.isTagged(m)) return true;
-        return cfg.axeExtraItems.contains(m);
+        if (m == Material.AIR || m == Material.CAVE_AIR || m == Material.VOID_AIR) return false;
+        if (cfg.axeExtraItems.contains(m)) return true;
+        return cfg.axeUseVanillaTag && Tag.ITEMS_AXES.isTagged(m);
     }
 
     /** Vanilla tier prefix for a material (WOODEN_AXE → "WOODEN"); "" if it matches none (custom tool). */

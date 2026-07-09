@@ -2,7 +2,9 @@ package com.asketmc.timber;
 
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -40,11 +42,38 @@ class ToolsTest {
     }
 
     @Test
+    @Tag("P0")
     void capInteraction_woodenCantFellGiantsNetheriteCan() {
         int wooden = cfg.tierMaxLogs.get(Tools.tierOfName("WOODEN_AXE"));
         int netherite = cfg.tierMaxLogs.get(Tools.tierOfName("NETHERITE_AXE"));
         assertTrue(Tools.tooWeak(wooden, 100), "wooden axe should not fell a 100-log giant");
         assertFalse(Tools.tooWeak(wooden, 8), "wooden axe should fell a small tree");
         assertFalse(Tools.tooWeak(netherite, 5000), "netherite is unlimited");
+    }
+
+    @Test
+    void isAxeHandlesNullAirVanillaAndConfiguredExtras() {
+        YamlConfiguration yml = new YamlConfiguration();
+        yml.set("axes.extra-items", java.util.List.of("NETHERITE_HOE"));
+        TimberConfig custom = new TimberConfig(yml);
+
+        assertFalse(Tools.isAxe(null, custom));
+        assertFalse(Tools.isAxe(new ItemStack(Material.AIR), custom));
+        assertTrue(Tools.isAxe(new ItemStack(Material.NETHERITE_HOE), custom));
+    }
+
+    @Test
+    void maxLogsForUsesScalingDefaultForCustomToolsAndUnlimitedWhenDisabled() {
+        YamlConfiguration yml = new YamlConfiguration();
+        yml.set("tool-scaling.default-max", 7);
+        yml.set("axes.extra-items", java.util.List.of("NETHERITE_HOE"));
+        TimberConfig custom = new TimberConfig(yml);
+
+        assertEquals(7, Tools.maxLogsFor(new ItemStack(Material.STICK), custom));
+
+        yml.set("tool-scaling.enabled", false);
+        TimberConfig disabled = new TimberConfig(yml);
+        assertEquals(-1, Tools.maxLogsFor(new ItemStack(Material.WOODEN_AXE), disabled));
+        assertEquals(-1, Tools.maxLogsFor(null, custom));
     }
 }
