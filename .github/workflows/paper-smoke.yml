@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: GPL-3.0-only
+
+name: Paper Runtime Smoke
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  paper-smoke:
+    name: Paper ${{ matrix.paper }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        paper: ["1.20.6", "latest-1.21"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Set up JDK 21
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Build plugin
+        run: mvn -B -ntp -DskipTests package
+      - name: Smoke Paper runtime
+        run: bash scripts/smoke-paper.sh "${{ matrix.paper }}" target/AMCTimber-*.jar "smoke-logs/${{ matrix.paper }}"
+      - name: Upload Paper logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: paper-smoke-${{ matrix.paper }}
+          path: smoke-logs/${{ matrix.paper }}/
+          if-no-files-found: error

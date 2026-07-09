@@ -1,29 +1,13 @@
 package com.asketmc.timber;
 
-import org.bukkit.Bukkit;
-import org.bukkit.block.Block;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
-import org.bukkit.command.CommandSender;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Interaction;
-import org.bukkit.entity.Player;
-import org.bukkit.event.player.PlayerInteractEntityEvent;
-import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 
-/**
- * AMCTimber — Valheim-style tree felling. Chop a tree and the section above your cut topples (a rig of
- * non-persistent BlockDisplays, client-interpolated), leaving a chop-able stump; the downed trunk must be
- * re-chopped for its logs (reduced yield + skill XP), and the canopy drops its vanilla loot. All visual
- * entities are ephemeral, tagged, capped, swept, and purged on enable AND disable — zero entity bloat.
- *
- * <p>Runs on Paper / Purpur / Pufferfish / <b>Folia</b>, MC 1.20.6 → 1.21.x, with no required
- * dependencies (WorldGuard and Towny are optional, fail-open integrations).
- */
-public final class TimberPlugin extends JavaPlugin implements CommandExecutor {
+/** Composes AMCTimber's runtime services and owns their lifecycle. */
+public final class TimberPlugin extends JavaPlugin {
 
     private TimberConfig cfg;
     private Debug debug;
@@ -33,6 +17,8 @@ public final class TimberPlugin extends JavaPlugin implements CommandExecutor {
     private XpBridge xpBridge;
     private Protection protection;
     private TreeScanner scanner;
+    private EntityBudget budget;
+    private FellRuntime runtime;
     private FellJobManager fellManager;
     private FelledTrunkStore store;
     private BlockBreakListener listener;
@@ -40,49 +26,75 @@ public final class TimberPlugin extends JavaPlugin implements CommandExecutor {
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        this.debug = new Debug(getLogger());
         this.sched = new Sched(this);
-        this.messages = new Messages();
         this.store = new FelledTrunkStore(getLogger());
-        this.fellManager = new FellJobManager(this);
         applyConfig();
+        store.initializeRecovery(getDataFolder().toPath(), budget);
+        this.fellManager = new FellJobManager(budget);
+
         store.purgeTagged("start");
         this.listener = new BlockBreakListener(this);
         getServer().getPluginManager().registerEvents(listener, this);
-        if (getCommand("amctimber") != null) getCommand("amctimber").setExecutor(this);
-        // per-second despawn / orphan sweep (global region — Folia-safe)
-        sched.globalTimer(() -> store.sweep(fx, sched), 20L, 20L);
+
+        PluginCommand command = getCommand("amctimber");
+        if (command == null) throw new IllegalStateException("amctimber command is missing from plugin.yml");
+        command.setExecutor(new AdminCommand(this));
+
+        sched.timer(store::sweep, 20L, 20L);
         String hooks = protection.hooks();
-        debug.info("AMCTimber v" + getPluginMeta().getVersion() + " enabled — "
-                + (Sched.FOLIA ? "Folia" : "Paper") + ", felling " + (cfg.enabled ? "on" : "OFF")
+        debug.info("AMCTimber v" + getPluginMeta().getVersion() + " enabled - felling "
+                + (cfg.enabled ? "on" : "OFF")
                 + (hooks.isEmpty() ? "" : ", hooks: " + hooks) + ".");
     }
 
     @Override
     public void onDisable() {
-        if (fellManager != null) fellManager.shutdown();
-        if (store != null) store.shutdown();
+        try {
+            if (fellManager != null) fellManager.shutdown();
+        } finally {
+            if (store != null) store.shutdown();
+        }
         if (debug != null) debug.info("AMCTimber v" + getPluginMeta().getVersion() + " disabled.");
     }
 
-    /** (Re)build everything derived from config.yml + messages.yml. Keeps store + manager state intact. */
-    private void applyConfig() {
+    /** Rebuild config-derived services while preserving active runtime state. */
+    void applyConfig() {
         reloadConfig();
-        this.cfg = new TimberConfig(getConfig());
-        this.debug.setLevel(cfg.debug);
-        this.fx = new Fx(cfg.sounds, cfg.particles, cfg.fallingLeaves);
-        this.xpBridge = new XpBridge(getLogger(), sched, cfg);
-        this.xpBridge.init(debug);
-        this.protection = new Protection(cfg.respectBuilds);
-        this.protection.init();
-        this.scanner = new TreeScanner(cfg);
-        reloadMessages();
+        TimberConfig nextConfig = new TimberConfig(getConfig());
+        Debug nextDebug = new Debug(getLogger());
+        nextDebug.setLevel(nextConfig.debug);
+        Messages nextMessages = loadMessages();
+        Fx nextEffects = new Fx(nextConfig.sounds, nextConfig.particles, nextConfig.fallingLeaves);
+        XpBridge nextXpBridge = new XpBridge(getLogger(), sched, nextConfig);
+        nextXpBridge.init(nextDebug);
+        Protection nextProtection = new Protection(
+                nextConfig.respectBuilds, nextConfig.protectionFailClosed, nextDebug::warn);
+        nextProtection.init();
+        TreeScanner nextScanner = new TreeScanner(nextConfig);
+        EntityBudget nextBudget = budget == null
+                ? new EntityBudget(nextConfig.maxLiveTrunks, nextConfig.maxTotalEntities) : budget;
+        nextBudget.updateLimits(nextConfig.maxLiveTrunks, nextConfig.maxTotalEntities);
+        FellRuntime nextRuntime = new FellRuntime(nextConfig, sched, nextDebug, store,
+                nextEffects, nextXpBridge, nextMessages, nextProtection);
+
+        // Publish one fully built generation. Existing fells retain their prior generation references.
+        this.cfg = nextConfig;
+        this.debug = nextDebug;
+        this.messages = nextMessages;
+        this.fx = nextEffects;
+        this.xpBridge = nextXpBridge;
+        this.protection = nextProtection;
+        this.scanner = nextScanner;
+        this.budget = nextBudget;
+        this.runtime = nextRuntime;
     }
 
-    private void reloadMessages() {
+    private Messages loadMessages() {
         File f = new File(getDataFolder(), "messages.yml");
         if (!f.exists()) saveResource("messages.yml", false);
-        messages.load(YamlConfiguration.loadConfiguration(f));
+        Messages loaded = new Messages();
+        loaded.load(YamlConfiguration.loadConfiguration(f));
+        return loaded;
     }
 
     TimberConfig cfg() { return cfg; }
@@ -93,155 +105,8 @@ public final class TimberPlugin extends JavaPlugin implements CommandExecutor {
     XpBridge xpBridge() { return xpBridge; }
     Protection protection() { return protection; }
     TreeScanner scanner() { return scanner; }
+    EntityBudget budget() { return budget; }
+    FellRuntime runtime() { return runtime; }
     FellJobManager fellManager() { return fellManager; }
     FelledTrunkStore store() { return store; }
-
-    @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!sender.hasPermission("amctimber.admin")) {
-            sender.sendMessage("§cNo permission (amctimber.admin).");
-            return true;
-        }
-        if (args.length == 0) {
-            sender.sendMessage("§7/amctimber reload | selftest | info | test fell <x> <y> <z> [player]"
-                    + " | test break <x> <y> <z> <player> [sneak] | test attack <player>"
-                    + " | test use <player> | test chop <player> [hits]");
-            return true;
-        }
-        switch (args[0].toLowerCase()) {
-            case "reload" -> { applyConfig(); sender.sendMessage("§a[AMCTimber] config + messages reloaded."); }
-            case "selftest" -> SelfTest.run(sender);
-            case "info" -> sender.sendMessage("§7[AMCTimber] active fells: §f" + fellManager.activeCount()
-                    + "§7, live trunks: §f" + store.size() + "§7, enabled: §f" + cfg.enabled
-                    + "§7, platform: §f" + (Sched.FOLIA ? "Folia" : "Paper")
-                    + "§7, stump: §f" + cfg.leaveStump + "§7, yield×: §f" + cfg.logYieldMultiplier
-                    + "§7, hits: §f" + cfg.hitsToFell + "+" + cfg.hitsPerLog + "/log (max " + cfg.maxHits + ")"
-                    + "§7, tool-scaling: §f" + cfg.toolScalingEnabled + "§7, crush: §f"
-                    + (cfg.crushEnabled ? cfg.crushBaseDamage + "+" + cfg.crushPerLogDamage + "/log≤" + cfg.crushMaxDamage : "off"));
-            case "test" -> handleTest(sender, args);
-            default -> sender.sendMessage("§c[AMCTimber] unknown subcommand. /amctimber");
-        }
-        return true;
-    }
-
-    /**
-     * Deterministic command-drivable hooks for QA / server tests:
-     * fell    — topple the tree at a log position directly (no event, no durability).
-     * break   — {@code Player#breakBlock}: the REAL break pipeline (events, protection, durability).
-     * attack  — {@code Player#attack} on the nearest trunk hitbox: the real left-click chop path.
-     * use     — dispatches a real PlayerInteractEntityEvent: the right-click chop path.
-     * chop    — direct chop calls on the nearest trunk (no cooldown), for fast drain-to-yield.
-     */
-    private void handleTest(CommandSender sender, String[] args) {
-        if (args.length < 2) { sender.sendMessage("§c/amctimber test fell|break|attack|use|chop ..."); return; }
-        String sub = args[1].toLowerCase();
-        switch (sub) {
-            case "fell" -> {
-                if (args.length < 5) { sender.sendMessage("§c/amctimber test fell <x> <y> <z> [player]"); return; }
-                Player owner = args.length >= 6 ? Bukkit.getPlayerExact(args[5]) : null;
-                Integer x = parseInt(args[2]), y = parseInt(args[3]), z = parseInt(args[4]);
-                if (x == null || y == null || z == null) { sender.sendMessage("§c[AMCTimber] x/y/z must be integers."); return; }
-                org.bukkit.World w = owner != null ? owner.getWorld() : Bukkit.getWorlds().get(0);
-                sched.atLocation(new org.bukkit.Location(w, x, y, z), () -> runTestFell(sender, owner, x, y, z));
-            }
-            case "break" -> {
-                if (args.length < 6) { sender.sendMessage("§c/amctimber test break <x> <y> <z> <player> [sneak]"); return; }
-                Player p = Bukkit.getPlayerExact(args[5]);
-                if (p == null) { sender.sendMessage("§c[AMCTimber] player not online: " + args[5]); return; }
-                Integer x = parseInt(args[2]), y = parseInt(args[3]), z = parseInt(args[4]);
-                if (x == null || y == null || z == null) { sender.sendMessage("§c[AMCTimber] x/y/z must be integers."); return; }
-                boolean sneak = args.length >= 7 && args[6].equalsIgnoreCase("sneak");
-                sched.atLocation(new org.bukkit.Location(p.getWorld(), x, y, z), () -> runTestBreak(sender, p, x, y, z, sneak));
-            }
-            case "attack", "use" -> {
-                if (args.length < 3) { sender.sendMessage("§c/amctimber test " + sub + " <player>"); return; }
-                Player p = Bukkit.getPlayerExact(args[2]);
-                if (p == null) { sender.sendMessage("§c[AMCTimber] player not online: " + args[2]); return; }
-                sched.atEntity(p, () -> runTestClick(sender, sub, p));
-            }
-            case "chop" -> {
-                if (args.length < 3) { sender.sendMessage("§c/amctimber test chop <player> [hits]"); return; }
-                Player p = Bukkit.getPlayerExact(args[2]);
-                if (p == null) { sender.sendMessage("§c[AMCTimber] player not online: " + args[2]); return; }
-                Integer hits = args.length >= 4 ? parseInt(args[3]) : null;
-                sched.atEntity(p, () -> runTestChop(sender, p, hits));
-            }
-            default -> sender.sendMessage("§c/amctimber test fell|break|attack|use|chop ...");
-        }
-    }
-
-    private void runTestFell(CommandSender sender, Player owner, int x, int y, int z) {
-        org.bukkit.World w = owner != null ? owner.getWorld() : Bukkit.getWorlds().get(0);
-        Block b = w.getBlockAt(x, y, z);
-        if (!TreeScanner.isLog(b.getType())) {
-            sender.sendMessage("§c[AMCTimber] block at " + x + "," + y + "," + z + " is " + b.getType() + ", not a log.");
-            return;
-        }
-        double[] dir = owner != null
-                ? TreeScanner.fallDir(owner.getLocation(), x, y, z)
-                : new double[]{1, 0};
-        TreeShape shape = scanner.scan(b, dir[0], dir[1]);
-        if (!shape.isTree) {
-            sender.sendMessage("§e[AMCTimber] not a tree: " + shape.rejectReason + " (logs=" + shape.logCount() + ")");
-            return;
-        }
-        boolean started = fellManager.tryFell(owner, shape);
-        sender.sendMessage(started
-                ? "§a[AMCTimber] fell started: logs=" + shape.logCount() + ", yield=" + cfg.logsYielded(shape.logCount())
-                + (shape.stump ? " (cut block stays as stump)" : "")
-                : "§e[AMCTimber] fell rejected (cap/duplicate).");
-    }
-
-    private void runTestBreak(CommandSender sender, Player p, int x, int y, int z, boolean sneak) {
-        Block b = p.getWorld().getBlockAt(x, y, z);
-        String was = b.getType().name();
-        boolean broke;
-        if (sneak) p.setSneaking(true);
-        try {
-            broke = p.breakBlock(b);
-        } finally {
-            if (sneak) p.setSneaking(false);
-        }
-        sender.sendMessage("§7[AMCTimber] breakBlock(" + was + (sneak ? ", sneaking" : "") + ") -> " + broke
-                + " §8(stump mode cancels the event: false + a fell start is green)");
-    }
-
-    private void runTestClick(CommandSender sender, String sub, Player p) {
-        FelledTrunk trunk = store.nearest(p.getLocation(), 8.0);
-        Interaction hb = trunk != null ? trunk.anyHitbox() : null;
-        if (hb == null) { sender.sendMessage("§e[AMCTimber] no felled trunk within 8 blocks of " + p.getName() + "."); return; }
-        if (sub.equals("attack")) {
-            p.attack(hb);                                  // the real vanilla attack path → our listener
-            sender.sendMessage("§a[AMCTimber] " + p.getName() + " attacked the trunk hitbox (left-click path).");
-        } else {
-            PlayerInteractEntityEvent ev = new PlayerInteractEntityEvent(p, hb, EquipmentSlot.HAND);
-            Bukkit.getPluginManager().callEvent(ev);       // real event dispatch → our listener
-            sender.sendMessage("§a[AMCTimber] right-click event dispatched, cancelled=" + ev.isCancelled()
-                    + " (cancelled=true means the trunk consumed it).");
-        }
-    }
-
-    private void runTestChop(CommandSender sender, Player p, Integer hitsArg) {
-        FelledTrunk trunk = store.nearest(p.getLocation(), 8.0);
-        if (trunk == null) { sender.sendMessage("§e[AMCTimber] no felled trunk within 8 blocks of " + p.getName() + "."); return; }
-        int hits = cfg.maxHits;
-        if (hitsArg != null) hits = hitsArg;
-        boolean done = false;
-        int applied = 0;
-        for (int i = 0; i < hits && !done; i++) {
-            done = trunk.chop(p, 1, fx, xpBridge, messages, cfg);
-            applied++;
-        }
-        if (done) {
-            store.drop(trunk);
-            sender.sendMessage("§a[AMCTimber] trunk fully chopped after " + applied + " hit(s): yielded "
-                    + trunk.yieldLogs() + " logs for " + p.getName() + ".");
-        } else {
-            sender.sendMessage("§7[AMCTimber] applied " + applied + " hit(s); trunk not yet fully chopped.");
-        }
-    }
-
-    private static Integer parseInt(String s) {
-        try { return Integer.parseInt(s); } catch (NumberFormatException e) { return null; }
-    }
 }

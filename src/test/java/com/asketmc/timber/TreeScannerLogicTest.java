@@ -2,9 +2,12 @@ package com.asketmc.timber;
 
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.block.data.type.Leaves;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+
+import java.lang.reflect.Proxy;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -60,22 +63,57 @@ class TreeScannerLogicTest {
 
     @Test
     void fallDir_pointsFromPlayerToTrunk_unitLength() {
-        double[] east = TreeScanner.fallDir(new Location(null, 0.5, 0, 0.5), 5, 0, 0);
+        double[] east = TreeScanner.fallDir(new Location(null, 0.5, 0, 0.5), 5, 0);
         assertEquals(1.0, east[0], 1e-6);
         assertEquals(0.0, east[1], 1e-6);
 
-        double[] north = TreeScanner.fallDir(new Location(null, 0.5, 0, 0.5), 0, 0, 5);
+        double[] north = TreeScanner.fallDir(new Location(null, 0.5, 0, 0.5), 0, 5);
         assertEquals(0.0, north[0], 1e-6);
         assertEquals(1.0, north[1], 1e-6);
 
-        double[] diag = TreeScanner.fallDir(new Location(null, 0, 0, 0), 3, 0, 4);
+        double[] diag = TreeScanner.fallDir(new Location(null, 0, 0, 0), 3, 4);
         assertEquals(1.0, Math.hypot(diag[0], diag[1]), 1e-6); // always normalised
     }
 
     @Test
     void fallDir_playerInsideTrunk_fallsAlongFacingStillUnit() {
         Location loc = new Location(null, 0.5, 0, 0.5, 0f, 0f); // dead centre -> uses yaw
-        double[] d = TreeScanner.fallDir(loc, 0, 0, 0);
+        double[] d = TreeScanner.fallDir(loc, 0, 0);
         assertEquals(1.0, Math.hypot(d[0], d[1]), 1e-6);
+    }
+
+    @Test
+    @Tag("P0")
+    void persistentPlayerPlacedLeavesAreNeverClassifiedAsNatural() {
+        Leaves natural = leaf(false);
+        Leaves placed = leaf(true);
+
+        assertTrue(TreeScanner.naturalLeaf(natural));
+        assertFalse(TreeScanner.naturalLeaf(placed));
+    }
+
+    private static Leaves leaf(boolean persistent) {
+        return (Leaves) Proxy.newProxyInstance(TreeScannerLogicTest.class.getClassLoader(),
+                new Class<?>[]{Leaves.class}, (proxy, method, args) -> switch (method.getName()) {
+                    case "isPersistent" -> persistent;
+                    case "getMaterial" -> Material.OAK_LEAVES;
+                    case "clone" -> proxy;
+                    case "hashCode" -> System.identityHashCode(proxy);
+                    case "equals" -> proxy == args[0];
+                    case "toString" -> "leaf[persistent=" + persistent + ']';
+                    default -> defaultValue(method.getReturnType());
+                });
+    }
+
+    private static Object defaultValue(Class<?> type) {
+        if (!type.isPrimitive()) return null;
+        if (type == boolean.class) return false;
+        if (type == char.class) return '\0';
+        if (type == byte.class) return (byte) 0;
+        if (type == short.class) return (short) 0;
+        if (type == int.class) return 0;
+        if (type == long.class) return 0L;
+        if (type == float.class) return 0F;
+        return 0D;
     }
 }

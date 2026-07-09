@@ -6,7 +6,7 @@
 
   <groupId>com.asketmc</groupId>
   <artifactId>amctimber</artifactId>
-  <version>1.0.5</version>
+  <version>1.0.6</version>
   <packaging>jar</packaging>
   <name>AMCTimber</name>
   <description>Valheim-style tree felling: chop a tree's base and the whole tree topples, then re-chop the felled trunk for logs.</description>
@@ -21,6 +21,7 @@
 
   <properties>
     <maven.compiler.release>21</maven.compiler.release>
+    <maven.compiler.proc>none</maven.compiler.proc>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <jacoco.version>0.8.15</jacoco.version>
     <pitest.version>1.25.7</pitest.version>
@@ -41,9 +42,7 @@
   </repositories>
 
   <dependencies>
-    <!-- Paper API: provided by the server at runtime. Paper's Folia-compatible scheduler API
-         (region/global/entity schedulers, available since 1.20.1) is what makes this Folia-ready
-         with no extra dependency. -->
+    <!-- Paper API is provided by the server at runtime. Compile against the oldest supported API. -->
     <dependency>
       <groupId>io.papermc.paper</groupId>
       <artifactId>paper-api</artifactId>
@@ -62,7 +61,8 @@
     </dependency>
 
     <!-- Optional, soft protection integrations. provided scope keeps them (and their transitives) OUT of
-         our jar; every call is guarded so the plugin loads and runs fine when they are absent (fail-open).
+         our jar; every call is guarded so the plugin loads and runs when they are absent. Hook errors use
+         the explicit protection-error-policy, which defaults to deny.
          Keep compile-time APIs on the older supported baseline to preserve Paper 1.20.x server stacks.
          worldguard-bukkit pulls worldguard-core + worldedit transitively, where the bridge's classes live. -->
     <dependency>
@@ -90,6 +90,16 @@
   <build>
     <finalName>AMCTimber-${project.version}</finalName>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.1</version>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
@@ -139,6 +149,9 @@
                   <includes>
                     <include>com.asketmc.timber.TimberConfig</include>
                     <include>com.asketmc.timber.Tools</include>
+                    <include>com.asketmc.timber.FellLifecycle</include>
+                    <include>com.asketmc.timber.EntityBudget</include>
+                    <include>com.asketmc.timber.YieldLedger</include>
                   </includes>
                   <limits>
                     <limit>

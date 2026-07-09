@@ -12,6 +12,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
       id-token: write
@@ -32,6 +33,29 @@ jobs:
         run: mvn -B -ntp clean verify
       - name: Prepare release artifacts
         run: bash scripts/prepare-release-assets.sh "${GITHUB_REF_NAME#v}" release
+      - name: Smoke exact release jar on Paper 1.20.6
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          jar="release/AMCTimber-${version}.jar"
+          bash scripts/smoke-paper.sh 1.20.6 "$jar" release-smoke/1.20.6
+          expected="$(sha256sum "$jar" | awk '{print $1}')"
+          grep -Fx "plugin_sha256=${expected}" release-smoke/1.20.6/smoke-summary.txt
+      - name: Smoke exact release jar on latest stable Paper 1.21
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          jar="release/AMCTimber-${version}.jar"
+          bash scripts/smoke-paper.sh latest-1.21 "$jar" release-smoke/latest-1.21
+          expected="$(sha256sum "$jar" | awk '{print $1}')"
+          grep -Fx "plugin_sha256=${expected}" release-smoke/latest-1.21/smoke-summary.txt
+      - name: Upload exact-jar runtime smoke evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-runtime-smoke-${{ github.event.release.tag_name }}
+          path: release-smoke/
+          if-no-files-found: ignore
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
       - name: Sign release artifacts

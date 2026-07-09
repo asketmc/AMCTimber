@@ -21,6 +21,9 @@ final class TimberConfig {
     static final int MAX_TREE_BLOCKS_CAP = 5_000;
     static final int MAX_DISPLAY_ENTITIES_CAP = 1_000;
     static final int MAX_CONCURRENT_FELLS_CAP = 32;
+    static final int MAX_LIVE_TRUNKS_CAP = 512;
+    static final int MAX_TOTAL_ENTITIES_CAP = 50_000;
+    static final int MAX_SCAN_READS_CAP = 250_000;
     static final int MAX_DESPAWN_SECONDS_CAP = 3_600;
 
     final String debug;                 // off | info | full
@@ -46,8 +49,11 @@ final class TimberConfig {
     final int leafAttachRadius;
     final int minNaturalLeaves;
     final boolean respectBuilds;
+    final boolean protectionFailClosed;
     final boolean sameSpeciesOnly;
     final boolean wildOnly;             // reject felling a "tree" wired into a player build (cabin/treehouse)
+    final int maxHorizontalLogSpan;
+    final int maxScanReads;
     final Set<Material> extraNatural;   // operator escape hatch: extra block types to treat as natural
 
     final int creakTicks;
@@ -57,6 +63,8 @@ final class TimberConfig {
     final double overshootDegrees;
     final int maxDisplayEntities;
     final int maxConcurrentFells;
+    final int maxLiveTrunks;
+    final int maxTotalEntities;
     final float viewRange;
 
     final boolean leaveStump;
@@ -91,6 +99,7 @@ final class TimberConfig {
     final boolean sounds;
     final boolean particles;
     final boolean fallingLeaves;
+    final boolean qaCommandsEnabled;
 
     TimberConfig(FileConfiguration c) {
         this.debug = c.getString("debug", "info");
@@ -106,16 +115,20 @@ final class TimberConfig {
 
         this.toolScalingEnabled = c.getBoolean("tool-scaling.enabled", true);
         this.toolScalingDefaultMax = c.getInt("tool-scaling.default-max", -1);
-        this.tooWeakAction = c.getString("tool-scaling.too-weak-action", "vanilla");
+        this.tooWeakAction = choice(c.getString("tool-scaling.too-weak-action", "vanilla"), "vanilla", "cancel");
         this.tierMaxLogs = parseTiers(c.getConfigurationSection("tool-scaling.tiers"));
 
-        this.minTreeHeight = Math.max(2, c.getInt("detection.min-tree-height", 4));
+        this.minTreeHeight = clampInt(c.getInt("detection.min-tree-height", 4), 2, 100);
         this.maxTreeBlocks = clampInt(c.getInt("detection.max-tree-blocks", 1500), 50, MAX_TREE_BLOCKS_CAP);
-        this.leafAttachRadius = Math.max(1, c.getInt("detection.leaf-attach-radius", 5));
-        this.minNaturalLeaves = Math.max(0, c.getInt("detection.min-natural-leaves", 8));
+        this.leafAttachRadius = clampInt(c.getInt("detection.leaf-attach-radius", 5), 1, 16);
+        this.minNaturalLeaves = clampInt(c.getInt("detection.min-natural-leaves", 8), 0, MAX_TREE_BLOCKS_CAP);
         this.respectBuilds = c.getBoolean("detection.respect-builds", true);
+        this.protectionFailClosed = !"allow".equalsIgnoreCase(
+                c.getString("detection.protection-error-policy", "deny"));
         this.sameSpeciesOnly = c.getBoolean("detection.same-species", true);
         this.wildOnly = c.getBoolean("detection.wild-only", true);
+        this.maxHorizontalLogSpan = clampInt(c.getInt("detection.max-horizontal-log-span", 16), 4, 64);
+        this.maxScanReads = clampInt(c.getInt("detection.max-scan-reads", 100_000), 1_000, MAX_SCAN_READS_CAP);
         this.extraNatural = parseMaterials(c.getStringList("detection.extra-natural"));
 
         this.creakTicks = (int) clamp(c.getInt("animation.creak-ticks", 5), 0, 20);
@@ -125,10 +138,12 @@ final class TimberConfig {
         this.overshootDegrees = clamp(c.getDouble("animation.overshoot-degrees", 3), 0, 10);
         this.maxDisplayEntities = clampInt(c.getInt("animation.max-display-entities", 400), 16, MAX_DISPLAY_ENTITIES_CAP);
         this.maxConcurrentFells = clampInt(c.getInt("animation.max-concurrent-fells", 8), 1, MAX_CONCURRENT_FELLS_CAP);
+        this.maxLiveTrunks = clampInt(c.getInt("animation.max-live-trunks", 64), 1, MAX_LIVE_TRUNKS_CAP);
+        this.maxTotalEntities = clampInt(c.getInt("animation.max-total-entities", 5_000), 64, MAX_TOTAL_ENTITIES_CAP);
         this.viewRange = (float) clamp(c.getDouble("animation.view-range", 1.2), 0.1, 5.0);
 
         this.leaveStump = c.getBoolean("trunk.leave-stump", true);
-        this.hitsToFell = Math.max(1, c.getInt("trunk.hits-to-fell", 3));
+        this.hitsToFell = clampInt(c.getInt("trunk.hits-to-fell", 3), 1, 100);
         this.hitsPerLog = clamp(c.getDouble("trunk.hits-per-log", 0.15), 0.0, 2.0);
         this.maxHits = clampInt(c.getInt("trunk.max-hits", 28), 1, 100);
         this.chopCooldownTicks = (int) clamp(c.getInt("trunk.chop-cooldown-ticks", 7), 0, 100);
@@ -150,14 +165,15 @@ final class TimberConfig {
         this.crushPvp = c.getBoolean("crush.pvp", false);
 
         this.xpEnabled = c.getBoolean("xp.enabled", false);
-        this.xpMode = c.getString("xp.mode", "command");
-        this.xpPerLog = Math.max(0, c.getInt("xp.per-log", 2));
+        this.xpMode = choice(c.getString("xp.mode", "command"), "none", "command");
+        this.xpPerLog = clampInt(c.getInt("xp.per-log", 2), 0, 100_000);
         this.xpSkill = c.getString("xp.skill", "foraging");
         this.xpCommand = c.getString("xp.command", "skillsadmin xp %player% %skill% %amount%");
 
         this.sounds = c.getBoolean("fx.sounds", true);
         this.particles = c.getBoolean("fx.particles", true);
         this.fallingLeaves = c.getBoolean("fx.falling-leaves", true);
+        this.qaCommandsEnabled = c.getBoolean("qa.commands-enabled", false);
 
     }
 
@@ -231,5 +247,12 @@ final class TimberConfig {
 
     private static int clampInt(int v, int lo, int hi) {
         return Math.max(lo, Math.min(hi, v));
+    }
+
+    private static String choice(String value, String fallback, String... allowed) {
+        if (value == null) return fallback;
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        for (String candidate : allowed) if (candidate.equals(normalized)) return normalized;
+        return fallback;
     }
 }

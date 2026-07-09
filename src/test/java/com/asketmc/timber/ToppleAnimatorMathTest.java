@@ -4,6 +4,7 @@ import org.bukkit.util.Transformation;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.joml.Quaternionf;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -74,6 +75,18 @@ class ToppleAnimatorMathTest {
         assertTrue(!ToppleAnimator.canRenderLogs(cfg, shapeWithLogs(17)));
     }
 
+    @Test
+    @Tag("P0")
+    void plannedPeakAccountsForLeavesAndLandedHitboxes() {
+        YamlConfiguration yml = new YamlConfiguration();
+        yml.set("animation.max-display-entities", 16);
+        TimberConfig cfg = new TimberConfig(yml);
+        TreeShape shape = shape(10, 100, 20);
+
+        assertEquals(16, ToppleAnimator.renderedCount(cfg, shape));
+        assertEquals(18, ToppleAnimator.plannedPeakEntities(cfg, shape));
+    }
+
     private static List<TreeShape.Node> nodes(int n) {
         List<TreeShape.Node> list = new ArrayList<>();
         for (int i = 0; i < n; i++) list.add(new TreeShape.Node(i, 0, 0, null, true));
@@ -81,7 +94,11 @@ class ToppleAnimatorMathTest {
     }
 
     private static TreeShape shapeWithLogs(int logs) {
-        return new TreeShape(null, nodes(logs), List.of(), 0, 0, 0, null,
-                0, 0, 0, 1, 0, logs, true, true, null);
+        return shape(logs, 0, logs);
+    }
+
+    private static TreeShape shape(int logs, int leaves, int height) {
+        return new TreeShape(null, nodes(logs), nodes(leaves), 0, 0, 0, null,
+                0, 0, 0, 1, 0, height, true, true, null);
     }
 }

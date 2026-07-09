@@ -15,149 +15,179 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Gatekeeps and launches topples: enforces the global concurrent-fell cap, de-dups two players hitting the
- * same cut, harvests the canopy's vanilla loot (saplings/sticks/apples — keeps forests replantable),
- * removes the tree's blocks from the world (with physics, so vines/cocoa/snow pop naturally), samples the
- * ground under the landing line, and hands off to a {@link FellJob}. A caller whose fell is rejected
- * (cap/dup) simply lets the vanilla break proceed — felling is best-effort.
- */
+/** Coordinates bounded, transactional handoff from world blocks to a falling session. */
 final class FellJobManager {
-    private final TimberPlugin plugin;
-    private final Set<Long> activeCuts = ConcurrentHashMap.newKeySet();
-    private final Set<FellJob> activeJobs = ConcurrentHashMap.newKeySet();
+    private final EntityBudget budget;
+    private final Set<BlockKey> activeCuts = ConcurrentHashMap.newKeySet();
+    private final Set<FellSession> activeSessions = ConcurrentHashMap.newKeySet();
 
-    FellJobManager(TimberPlugin plugin) { this.plugin = plugin; }
+    FellJobManager(EntityBudget budget) {
+        this.budget = budget;
+    }
 
-    int activeCount() { return activeCuts.size(); }
+    int activeCount() {
+        return activeCuts.size();
+    }
 
-    /**
-     * Attempt to fell the scanned tree. Returns true if a topple was started (the caller then cancels the
-     * break in stump mode, or suppresses the base drop otherwise). Returns false if capped/duplicate.
-     */
-    boolean tryFell(Player owner, TreeShape shape) {
-        TimberConfig cfg = plugin.cfg();
+    boolean tryFell(Player owner, TreeShape shape, FellRuntime runtime) {
+        TimberConfig cfg = runtime.config();
+        if (!runtime.store().recoveryCapacityAvailable()) {
+            runtime.debug().full("fell rejected: recovery journal capacity is exhausted");
+            return false;
+        }
+        if (!landingPathLoaded(shape)) {
+            runtime.debug().full("fell rejected: landing path crosses an unloaded chunk");
+            return false;
+        }
         if (!ToppleAnimator.canRenderLogs(cfg, shape)) {
-            plugin.debug().full("fell rejected: logs=" + shape.logCount()
+            runtime.debug().full("fell rejected: logs=" + shape.logCount()
                     + " exceeds display cap " + cfg.maxDisplayEntities);
             return false;
         }
-        long cutKey = key(shape.cutX, shape.cutY, shape.cutZ);
+
+        BlockKey cutKey = BlockKey.from(shape);
         synchronized (activeCuts) {
-            if (activeCuts.size() >= cfg.maxConcurrentFells) return false;
-            if (!activeCuts.add(cutKey)) return false;     // already toppling this cut
+            if (activeCuts.size() >= cfg.maxConcurrentFells || !activeCuts.add(cutKey)) return false;
         }
 
-        boolean handedOff = false;
-        FellJob job = null;
+        EntityBudget.Reservation reservation = budget.tryReserve(ToppleAnimator.plannedPeakEntities(cfg, shape));
+        if (reservation == null) {
+            release(cutKey);
+            runtime.debug().full("fell rejected by global entity/session budget");
+            return false;
+        }
+
+        WorldMutationJournal journal = new WorldMutationJournal(shape.world);
+        ToppleAnimator.Rig rig = null;
+        FellSession session;
         try {
-            // Canopy loot rolls against the LIVE leaf blocks, so it must happen before removal.
-            List<ItemStack> leafLoot = cfg.leafLoot ? collectLeafLoot(shape) : List.of();
-
-            // Remove every collected block (leaves first so log removal doesn't schedule decay on blocks we
-            // are about to clear anyway). Physics on: attached vines/cocoa/snow pop with natural drops.
-            World w = shape.world;
-            for (TreeShape.Node n : shape.leaves) removeBlock(w, n);
-            for (TreeShape.Node n : shape.logs) removeBlock(w, n);
-
-            // How far the rig must drop after rotating, so a mid-trunk cut still lands on the ground.
-            double yDrop = groundDrop(shape);
-
-            plugin.fx().crackStart(new Location(w, shape.cutX + 0.5, shape.cutY, shape.cutZ + 0.5));
-
-            ToppleAnimator.Rig rig = ToppleAnimator.spawn(cfg, shape);
-            UUID ownerId = owner != null ? owner.getUniqueId() : null;
-            job = new FellJob(plugin, this, shape, rig, owner, ownerId, cutKey, yDrop, leafLoot);
-            activeJobs.add(job);
-            job.start();
-            handedOff = true;
-            return true;
-        } finally {
-            if (!handedOff) {
-                if (job != null) activeJobs.remove(job);
+            List<TreeShape.Node> snapshots = allNodes(shape);
+            if (!journal.preflight(snapshots)) {
+                reservation.close();
                 release(cutKey);
+                runtime.debug().full("fell rejected: world changed after scan");
+                return false;
             }
+
+            List<ItemStack> leafLoot = cfg.leafLoot ? collectLeafLoot(shape) : List.of();
+            for (TreeShape.Node node : shape.leaves) requireRemoved(journal, node);
+            for (TreeShape.Node node : shape.logs) requireRemoved(journal, node);
+
+            double yDrop = groundDrop(shape);
+            runtime.effects().crackStart(new Location(shape.world,
+                    shape.cutX + 0.5, shape.cutY, shape.cutZ + 0.5));
+            rig = ToppleAnimator.spawn(cfg, shape);
+
+            FellLifecycle lifecycle = new FellLifecycle();
+            YieldLedger yield = new YieldLedger(cfg.logsYielded(shape.logCount()));
+            UUID ownerId = owner == null ? null : owner.getUniqueId();
+            session = new FellSession(runtime.scheduler(), runtime.debug(), this, runtime.store(),
+                    cfg, runtime.effects(), runtime.xpBridge(), runtime.messages(), runtime.protection(),
+                    shape, rig, owner, ownerId, cutKey, yDrop, leafLoot, yield, lifecycle, reservation);
+        } catch (RuntimeException | LinkageError failure) {
+            int restored = journal.rollback();
+            int restoreFailures = journal.rollbackFailures();
+            ToppleAnimator.remove(rig);
+            reservation.close();
+            release(cutKey);
+            runtime.debug().warn("fell launch rolled back at " + shape.cutX + ',' + shape.cutY + ',' + shape.cutZ
+                    + ": " + failure.getClass().getSimpleName() + " (restored " + restored
+                    + " blocks, restore failures " + restoreFailures + ")");
+            return false;
         }
+
+        // Ownership transfers after the destructive transaction commits. start() contains and recovers
+        // scheduler failures, so a committed fell can never re-enter the rollback path or duplicate yield.
+        journal.commit();
+        activeSessions.add(session);
+        session.start();
+        return true;
     }
 
-    /** Called by a FellJob when it lands — frees the cut slot. */
-    void finish(FellJob job, long cutKey) {
-        activeJobs.remove(job);
+    void finish(FellSession session, BlockKey cutKey) {
+        activeSessions.remove(session);
         release(cutKey);
     }
 
-    void release(long cutKey) {
+    private void release(BlockKey cutKey) {
         synchronized (activeCuts) {
             activeCuts.remove(cutKey);
         }
     }
 
     void shutdown() {
-        for (FellJob job : new ArrayList<>(activeJobs)) {
+        for (FellSession session : new ArrayList<>(activeSessions)) {
             try {
-                job.emergencyDrop();
-            } catch (Throwable ignored) {
-                // Plugin disable must continue even if the world is already unloading.
+                session.abortOnShutdown();
+            } catch (RuntimeException | LinkageError failure) {
+                // Continue releasing every other session; fail() is designed not to throw.
             }
         }
-        activeJobs.clear();
+        activeSessions.clear();
         synchronized (activeCuts) {
             activeCuts.clear();
         }
     }
 
-    /** Vanilla loot-table drops for every collected leaf (rolled per block, merged into stacks). */
-    private static List<ItemStack> collectLeafLoot(TreeShape shape) {
-        Map<Material, Integer> counts = new HashMap<>();
-        World w = shape.world;
-        for (TreeShape.Node n : shape.leaves) {
-            Block b = w.getBlockAt(n.x, n.y, n.z);
-            if (!TreeScanner.isLeaf(b.getType())) continue;
-            for (ItemStack it : b.getDrops()) {
-                if (it != null && it.getAmount() > 0) counts.merge(it.getType(), it.getAmount(), Integer::sum);
-            }
-        }
-        List<ItemStack> out = new ArrayList<>();
-        for (Map.Entry<Material, Integer> e : counts.entrySet()) {
-            int left = e.getValue();
-            while (left > 0) {
-                int stack = Math.min(64, left);
-                out.add(new ItemStack(e.getKey(), stack));
-                left -= stack;
-            }
-        }
-        return out;
+    private static List<TreeShape.Node> allNodes(TreeShape shape) {
+        List<TreeShape.Node> nodes = new ArrayList<>(shape.leaves.size() + shape.logs.size());
+        nodes.addAll(shape.leaves);
+        nodes.addAll(shape.logs);
+        return nodes;
     }
 
-    /**
-     * Vertical distance from the pivot down to the ground under the landing line's midpoint (0 for a
-     * normal base cut). Sampled after removal so the tree's own blocks can't catch the ray; neighbouring
-     * canopies are skipped so trunks don't come to rest on treetops. Water counts as ground — trunks float.
-     */
+    private static void requireRemoved(WorldMutationJournal journal, TreeShape.Node node) {
+        if (!journal.remove(node)) throw new IllegalStateException("world snapshot changed during commit");
+    }
+
+    private static List<ItemStack> collectLeafLoot(TreeShape shape) {
+        Map<Material, Integer> counts = new HashMap<>();
+        World world = shape.world;
+        for (TreeShape.Node node : shape.leaves) {
+            Block block = world.getBlockAt(node.x, node.y, node.z);
+            if (!WorldMutationJournal.sameSnapshot(node.data, block.getBlockData())) continue;
+            for (ItemStack item : block.getDrops()) {
+                if (item != null && item.getAmount() > 0) {
+                    counts.merge(item.getType(), item.getAmount(), Integer::sum);
+                }
+            }
+        }
+        List<ItemStack> output = new ArrayList<>();
+        for (Map.Entry<Material, Integer> entry : counts.entrySet()) {
+            int remaining = entry.getValue();
+            while (remaining > 0) {
+                int stack = Math.min(64, remaining);
+                output.add(new ItemStack(entry.getKey(), stack));
+                remaining -= stack;
+            }
+        }
+        return output;
+    }
+
     private static double groundDrop(TreeShape shape) {
-        World w = shape.world;
-        int mx = (int) Math.floor(shape.pivotX + shape.dirX * shape.height * 0.5);
-        int mz = (int) Math.floor(shape.pivotZ + shape.dirZ * shape.height * 0.5);
+        World world = shape.world;
+        int midX = (int) Math.floor(shape.pivotX + shape.dirX * shape.height * 0.5);
+        int midZ = (int) Math.floor(shape.pivotZ + shape.dirZ * shape.height * 0.5);
+        if (!world.isChunkLoaded(midX >> 4, midZ >> 4)) return 0;
         int startY = (int) Math.floor(shape.pivotY) - 1;
-        int floor = Math.max(w.getMinHeight(), startY - 48);
-        for (int y = startY; y >= floor; y--) {
-            Block b = w.getBlockAt(mx, y, mz);
-            Material m = b.getType();
-            if (b.isLiquid() || (m.isSolid() && !TreeScanner.isLeaf(m))) {
+        for (int y = startY; y >= world.getMinHeight(); y--) {
+            Block block = world.getBlockAt(midX, y, midZ);
+            Material material = block.getType();
+            if (block.isLiquid() || (material.isSolid() && !TreeScanner.isLeaf(material))) {
                 return Math.max(0, shape.pivotY - (y + 1));
             }
         }
         return 0;
     }
 
-    private static void removeBlock(World w, TreeShape.Node n) {
-        Block b = w.getBlockAt(n.x, n.y, n.z);
-        Material now = b.getType();
-        // only clear if it's still the log/leaf we snapshotted (chunk may have changed)
-        if (TreeScanner.isLog(now) || TreeScanner.isLeaf(now)) b.setType(Material.AIR, true);
-    }
-
-    static long key(int x, int y, int z) {
-        return ((long) x & 0x3FFFFFF) | (((long) z & 0x3FFFFFF) << 26) | (((long) (y + 2048) & 0xFFF) << 52);
+    private static boolean landingPathLoaded(TreeShape shape) {
+        int steps = Math.max(1, (int) Math.ceil(Math.max(2.0, shape.height) / 4.0));
+        for (int step = 0; step <= steps; step++) {
+            double distance = Math.max(2.0, shape.height) * step / steps;
+            int x = (int) Math.floor(shape.pivotX + shape.dirX * distance);
+            int z = (int) Math.floor(shape.pivotZ + shape.dirZ * distance);
+            if (!shape.world.isChunkLoaded(x >> 4, z >> 4)) return false;
+        }
+        return true;
     }
 }

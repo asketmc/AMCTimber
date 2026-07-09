@@ -4,65 +4,97 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 
-/**
- * Composes the WorldGuard + Towny soft bridges into one predicate: "may this player fell this whole tree?".
- * The base block's break was already permitted by vanilla (we listen ignoreCancelled), so this only has to
- * catch the edge case of a tree straddling a protection boundary. We check every <em>log</em> (not leaves —
- * leaves are low-value and attached to logs we're allowed to break); if any log is protected we abort the
- * fell entirely (clean all-or-nothing) and the player just breaks the base vanilla-style.
- *
- * <p>Null-safe and fail-open by construction (see the bridges), so {@link #canFell} is also unit-tested.
- */
-final class Protection {
-    private final WorldGuardBridge wg = new WorldGuardBridge();
-    private final TownyBridge towny = new TownyBridge();
-    private final boolean respectBuilds;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Consumer;
 
-    Protection(boolean respectBuilds) {
+/** Composes optional protection hooks with an explicit error policy. */
+final class Protection {
+    private static final long WARNING_INTERVAL_MILLIS = 60_000L;
+
+    private final List<ProtectionHook> hooks;
+    private final boolean respectBuilds;
+    private final boolean failClosed;
+    private final Consumer<String> warningSink;
+    private long lastWarningMillis;
+
+    Protection(boolean respectBuilds, boolean failClosed, Consumer<String> warningSink) {
+        this(respectBuilds, failClosed, warningSink, new WorldGuardBridge(), new TownyBridge());
+    }
+
+    Protection(boolean respectBuilds, boolean failClosed, Consumer<String> warningSink, ProtectionHook... hooks) {
         this.respectBuilds = respectBuilds;
+        this.failClosed = failClosed;
+        this.warningSink = Objects.requireNonNull(warningSink, "warningSink");
+        this.hooks = Arrays.asList(hooks);
     }
 
     void init() {
-        wg.init();
-        towny.init();
+        for (ProtectionHook hook : hooks) hook.init();
     }
 
-    boolean active() { return respectBuilds && (wg.present() || towny.present()); }
+    boolean active() {
+        if (!respectBuilds) return false;
+        for (ProtectionHook hook : hooks) if (hook.present()) return true;
+        return false;
+    }
 
-    /** Compact one-line hook summary for the enable log, e.g. "WorldGuard+Towny" (empty when none). */
     String hooks() {
-        StringBuilder sb = new StringBuilder();
-        if (wg.present()) sb.append("WorldGuard");
-        if (towny.present()) { if (sb.length() > 0) sb.append("+"); sb.append("Towny"); }
-        return sb.toString();
+        StringBuilder names = new StringBuilder();
+        for (ProtectionHook hook : hooks) {
+            if (!hook.present()) continue;
+            if (!names.isEmpty()) names.append('+');
+            names.append(hook.name());
+        }
+        return names.toString();
     }
 
-    /** True if the player may break a single block at loc (used by the per-block path + tests). */
-    boolean canBreak(Player player, Location loc) {
-        return canBreak(player, loc, loc.getBlock().getType());
+    boolean canBreak(Player player, Location location) {
+        return canBreak(player, location, location.getBlock().getType());
     }
 
-    /** True if the player may break a block of {@code material} at loc (WorldGuard BUILD + Towny DESTROY). */
-    boolean canBreak(Player player, Location loc, Material material) {
-        if (!respectBuilds) return true;
-        return wg.canBuild(player, loc) && towny.canDestroy(player, loc, material);
+    boolean canBreak(Player player, Location location, Material material) {
+        return decision(player, location, material) == ProtectionHook.Decision.ALLOW;
     }
 
-    /**
-     * True only if the player may break the WHOLE tree — the cut/base block AND every toppling log. All-or-
-     * nothing: a tree rooted in (or straddling) a WorldGuard region or Towny claim the player can't build in
-     * is never dragged down. "Can't interact here → no fell." Beds and other player structures are caught
-     * separately, before this, by the wild-only block guard in {@link TreeScanner}.
-     */
+    ProtectionHook.Decision decision(Player player, Location location, Material material) {
+        if (!respectBuilds) return ProtectionHook.Decision.ALLOW;
+        boolean error = false;
+        for (ProtectionHook hook : hooks) {
+            if (!hook.present()) continue;
+            ProtectionHook.Decision decision = hook.canBreak(player, location, material);
+            if (decision == ProtectionHook.Decision.DENY) return ProtectionHook.Decision.DENY;
+            if (decision == ProtectionHook.Decision.ERROR) {
+                error = true;
+                warnThrottled(hook.name());
+            }
+        }
+        if (!error) return ProtectionHook.Decision.ALLOW;
+        return failClosed ? ProtectionHook.Decision.DENY : ProtectionHook.Decision.ALLOW;
+    }
+
     boolean canFell(Player player, TreeShape shape) {
-        if (!respectBuilds) return true;
-        if (!wg.present() && !towny.present()) return true;
+        if (!respectBuilds || !active()) return true;
         Location base = new Location(shape.world, shape.cutX, shape.cutY, shape.cutZ);
         if (!canBreak(player, base, shape.baseMaterial)) return false;
-        for (TreeShape.Node n : shape.logs) {
-            Location loc = new Location(shape.world, n.x, n.y, n.z);
-            if (!canBreak(player, loc, n.data.getMaterial())) return false;
+        if (!allBreakable(player, shape, shape.logs)) return false;
+        return allBreakable(player, shape, shape.leaves);
+    }
+
+    private boolean allBreakable(Player player, TreeShape shape, List<TreeShape.Node> nodes) {
+        for (TreeShape.Node node : nodes) {
+            Location location = new Location(shape.world, node.x, node.y, node.z);
+            if (!canBreak(player, location, node.data.getMaterial())) return false;
         }
         return true;
+    }
+
+    private void warnThrottled(String hook) {
+        long now = System.currentTimeMillis();
+        if (now - lastWarningMillis < WARNING_INTERVAL_MILLIS) return;
+        lastWarningMillis = now;
+        warningSink.accept(hook + " permission check failed; protection error policy is "
+                + (failClosed ? "deny" : "allow") + '.');
     }
 }

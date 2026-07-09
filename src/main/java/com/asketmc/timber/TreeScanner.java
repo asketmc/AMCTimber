@@ -12,7 +12,9 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -64,7 +66,7 @@ final class TreeScanner {
     }
 
     /** True if the leaf block is a natural (vanilla-grown) leaf — placed leaves carry persistent=true. */
-    private static boolean naturalLeaf(BlockData d) {
+    static boolean naturalLeaf(BlockData d) {
         return d instanceof Leaves l && !l.isPersistent();
     }
 
@@ -139,23 +141,27 @@ final class TreeScanner {
      */
     TreeShape scan(Block broken, double dirX, double dirZ) {
         World w = broken.getWorld();
+        ScanContext scan = new ScanContext(w, cfg.maxScanReads);
         final boolean stump = cfg.leaveStump;
         final String species = speciesOf(broken.getType());
         final boolean sameSpecies = cfg.sameSpeciesOnly;
 
         // 1) Pick the cut origin. Stump mode cuts AT the axed block; legacy mode walks down to the base.
-        Block origin = broken;
+        int ox = broken.getX(), oy = broken.getY(), oz = broken.getZ();
         if (!stump) {
             while (true) {
-                Block below = origin.getRelative(0, -1, 0);
-                if (below.getY() < w.getMinHeight()) break;
-                if (!logMatches(below.getType(), species, sameSpecies)) break;
-                origin = below;
-                if (broken.getY() - origin.getY() > cfg.maxTreeBlocks) break;
+                int belowY = oy - 1;
+                if (belowY < w.getMinHeight()) break;
+                Material below = scan.material(ox, belowY, oz);
+                if (scan.blocked() || !logMatches(below, species, sameSpecies)) break;
+                oy = belowY;
+                if (broken.getY() - oy > cfg.maxTreeBlocks) break;
             }
         }
-        final int ox = origin.getX(), oy = origin.getY(), oz = origin.getZ();
-        final Material baseMat = origin.getType();
+        if (scan.blocked()) return rejected(w, ox, oy, oz, broken.getType(), dirX, dirZ, stump, scan.reason());
+        final BlockData baseData = scan.data(ox, oy, oz);
+        if (baseData == null) return rejected(w, ox, oy, oz, broken.getType(), dirX, dirZ, stump, scan.reason());
+        final Material baseMat = baseData.getMaterial();
 
         // 2) BFS the connected logs over a full 3x3x3 neighbourhood (captures branches + 2x2 trunks),
         //    never walking below the cut level. In stump mode the origin block itself is the seed but is
@@ -166,13 +172,18 @@ final class TreeScanner {
         q.add(new int[]{ox, oy, oz});
         seen.add(key(ox, oy, oz));
         int minY = Integer.MAX_VALUE, maxY = Integer.MIN_VALUE;
-        while (!q.isEmpty() && logs.size() < cfg.maxTreeBlocks) {
+        boolean logLimitHit = false;
+        while (!q.isEmpty()) {
+            if (logs.size() >= cfg.maxTreeBlocks) {
+                logLimitHit = true;
+                break;
+            }
             int[] c = q.poll();
-            Block b = w.getBlockAt(c[0], c[1], c[2]);
-            if (!logMatches(b.getType(), species, sameSpecies)) continue;
+            BlockData data = scan.data(c[0], c[1], c[2]);
+            if (data == null || !logMatches(data.getMaterial(), species, sameSpecies)) continue;
             boolean isOrigin = c[0] == ox && c[1] == oy && c[2] == oz;
             if (!(stump && isOrigin)) {
-                logs.add(new TreeShape.Node(c[0], c[1], c[2], b.getBlockData().clone(), true));
+                logs.add(new TreeShape.Node(c[0], c[1], c[2], data.clone(), true));
                 minY = Math.min(minY, c[1]);
                 maxY = Math.max(maxY, c[1]);
             }
@@ -184,12 +195,14 @@ final class TreeScanner {
                         if (ny < oy) continue;                 // never descend below the cut
                         long k = key(nx, ny, nz);
                         if (seen.contains(k)) continue;
-                        if (logMatches(w.getBlockAt(nx, ny, nz).getType(), species, sameSpecies)) {
+                        if (logMatches(scan.material(nx, ny, nz), species, sameSpecies)) {
                             seen.add(k);
                             q.add(new int[]{nx, ny, nz});
                         }
                     }
         }
+        if (scan.blocked()) return rejected(w, ox, oy, oz, baseMat, dirX, dirZ, stump, scan.reason());
+        if (logLimitHit) return rejected(w, ox, oy, oz, baseMat, dirX, dirZ, stump, "too-large");
         if (logs.isEmpty()) {
             return rejected(w, ox, oy, oz, baseMat, dirX, dirZ, stump, "nothing-above-cut");
         }
@@ -200,6 +213,7 @@ final class TreeScanner {
         //    tree — skip it, so dense forests don't get bald patches around every fell.
         List<TreeShape.Node> leaves = new ArrayList<>();
         int naturalLeafCount = 0;
+        boolean persistentLeafSeen = false;
         int leafBudget = Math.max(0, cfg.maxTreeBlocks - logs.size());
         Set<Long> leafSeen = new HashSet<>();
         Deque<int[]> lq = new ArrayDeque<>();
@@ -214,12 +228,15 @@ final class TreeScanner {
         }
         while (!lq.isEmpty() && leaves.size() < leafBudget) {
             int[] c = lq.poll();
-            Block b = w.getBlockAt(c[0], c[1], c[2]);
-            if (!leafMatches(b.getType(), species, sameSpecies)) continue;
-            BlockData d = b.getBlockData();
+            BlockData d = scan.data(c[0], c[1], c[2]);
+            if (d == null || !leafMatches(d.getMaterial(), species, sameSpecies)) continue;
             int ownDistance = d instanceof Leaves l ? l.getDistance() : 7;
             if (c[3] + 1 > ownDistance) continue;              // a closer trunk owns this leaf
-            if (naturalLeaf(d)) naturalLeafCount++;
+            if (!naturalLeaf(d)) {
+                persistentLeafSeen = true;
+                continue;
+            }
+            naturalLeafCount++;
             leaves.add(new TreeShape.Node(c[0], c[1], c[2], d.clone(), false));
             int dist = c[3];
             if (dist >= cfg.leafAttachRadius) continue;
@@ -229,10 +246,11 @@ final class TreeScanner {
                         if (dx == 0 && dy == 0 && dz == 0) continue;
                         int nx = c[0] + dx, ny = c[1] + dy, nz = c[2] + dz;
                         long k = key(nx, ny, nz);
-                        if (leafSeen.add(k) && leafMatches(w.getBlockAt(nx, ny, nz).getType(), species, sameSpecies))
+                        if (leafSeen.add(k) && leafMatches(scan.material(nx, ny, nz), species, sameSpecies))
                             lq.add(new int[]{nx, ny, nz, dist + 1});
                     }
         }
+        if (scan.blocked()) return rejected(w, ox, oy, oz, baseMat, dirX, dirZ, stump, scan.reason());
 
         // 4) Pivot = centroid of the lowest collected log level. For a 1x1 trunk in stump mode that is the
         //    block right on top of the stump; for 2x2 trunks it is the footprint centre.
@@ -250,11 +268,21 @@ final class TreeScanner {
         //    biological tree, so it counts toward the size thresholds even though it doesn't topple.
         int effLogs = logs.size() + (stump ? 1 : 0);
         int effHeight = height + (stump ? 1 : 0);
+        int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
+        int minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
+        for (TreeShape.Node node : logs) {
+            minX = Math.min(minX, node.x); maxX = Math.max(maxX, node.x);
+            minZ = Math.min(minZ, node.z); maxZ = Math.max(maxZ, node.z);
+        }
+        int horizontalSpan = Math.max(maxX - minX + 1, maxZ - minZ + 1);
         String reject = null;
         if (effLogs < cfg.minTreeHeight) reject = "too-few-logs(" + effLogs + ")";
         else if (effHeight < cfg.minTreeHeight) reject = "too-short(" + effHeight + ")";
         else if (naturalLeafCount < cfg.minNaturalLeaves) reject = "no-canopy(" + naturalLeafCount + ")";
-        else if (cfg.wildOnly && touchesBuild(w, logs)) reject = "player-build";
+        else if (cfg.wildOnly && persistentLeafSeen) reject = "player-placed-leaves";
+        else if (cfg.wildOnly && horizontalSpan > cfg.maxHorizontalLogSpan) reject = "suspicious-log-span";
+        else if (cfg.wildOnly && touchesBuild(logs, scan)) reject = "player-build";
+        if (scan.blocked()) reject = scan.reason();
         boolean isTree = reject == null;
 
         return new TreeShape(w, logs, leaves, ox, oy, oz, baseMat,
@@ -263,20 +291,21 @@ final class TreeScanner {
 
     /**
      * True if any face-neighbour of a collected trunk log is a non-natural (player-placed) block — i.e. the
-     * "tree" is wired into a structure (cabin / treehouse). Reads live blocks; runs only for trees that have
-     * already passed the size/canopy checks, so it costs at most ~6 lookups per trunk log on a real fell.
+     * "tree" is wired into a structure (cabin / treehouse). Reads cached snapshots; runs only for trees that
+     * already passed the size/canopy checks, and remains inside the configured global scan-read budget.
      */
-    private boolean touchesBuild(World w, List<TreeShape.Node> logs) {
+    private boolean touchesBuild(List<TreeShape.Node> logs, ScanContext scan) {
         for (TreeShape.Node n : logs) {
-            for (int[] f : FACES) {
-                Material m = w.getBlockAt(n.x + f[0], n.y + f[1], n.z + f[2]).getType();
-                if (!isNaturalNeighbor(m) && !cfg.extraNatural.contains(m)) return true;
-            }
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dy = -1; dy <= 1; dy++)
+                    for (int dz = -1; dz <= 1; dz++) {
+                        if (dx == 0 && dy == 0 && dz == 0) continue;
+                        Material material = scan.material(n.x + dx, n.y + dy, n.z + dz);
+                        if (!isNaturalNeighbor(material) && !cfg.extraNatural.contains(material)) return true;
+                    }
         }
         return false;
     }
-
-    private static final int[][] FACES = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
 
     private static boolean logMatches(Material m, String species, boolean sameSpecies) {
         return isLog(m) && (!sameSpecies || species.equals(speciesOf(m)));
@@ -293,7 +322,7 @@ final class TreeScanner {
     }
 
     /** Fall direction (unit, horizontal) pointing away from the player toward/over the trunk. */
-    static double[] fallDir(Location player, int bx, int by, int bz) {
+    static double[] fallDir(Location player, int bx, int bz) {
         double dx = (bx + 0.5) - player.getX();
         double dz = (bz + 0.5) - player.getZ();
         double len = Math.sqrt(dx * dx + dz * dz);
@@ -308,5 +337,53 @@ final class TreeScanner {
 
     private static long key(int x, int y, int z) {
         return ((long) x & 0x3FFFFFF) | (((long) z & 0x3FFFFFF) << 26) | (((long) (y + 2048) & 0xFFF) << 52);
+    }
+
+    /** Cached, bounded access to already-loaded chunks only. */
+    private static final class ScanContext {
+        private final World world;
+        private final int maxReads;
+        private final Map<Long, BlockData> cache = new HashMap<>();
+        private final BlockData air = Material.AIR.createBlockData();
+        private int reads;
+        private String blockedReason;
+
+        private ScanContext(World world, int maxReads) {
+            this.world = world;
+            this.maxReads = maxReads;
+        }
+
+        private Material material(int x, int y, int z) {
+            BlockData data = data(x, y, z);
+            return data == null ? Material.AIR : data.getMaterial();
+        }
+
+        private BlockData data(int x, int y, int z) {
+            if (blockedReason != null) return null;
+            if (y < world.getMinHeight() || y >= world.getMaxHeight()) return air;
+            long key = key(x, y, z);
+            BlockData cached = cache.get(key);
+            if (cached != null) return cached;
+            if (!world.isChunkLoaded(x >> 4, z >> 4)) {
+                blockedReason = "unloaded-chunk-boundary";
+                return null;
+            }
+            if (reads >= maxReads) {
+                blockedReason = "scan-read-budget";
+                return null;
+            }
+            reads++;
+            BlockData loaded = world.getBlockAt(x, y, z).getBlockData();
+            cache.put(key, loaded);
+            return loaded;
+        }
+
+        private boolean blocked() {
+            return blockedReason != null;
+        }
+
+        private String reason() {
+            return blockedReason == null ? "scan-failed" : blockedReason;
+        }
     }
 }

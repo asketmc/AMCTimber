@@ -15,8 +15,8 @@ import java.util.logging.Logger;
  *
  * Treat this as trusted server-operator config, not arbitrary player input.
  *
- * Placeholders: {@code %player%}, {@code %skill%}, {@code %amount%}. Dispatched as CONSOLE on the global
- * region thread (Folia-safe) so it works regardless of who triggered the fell. {@code mode: none} (or
+ * Placeholders: {@code %player%}, {@code %skill%}, {@code %amount%}. Dispatched as CONSOLE on Paper's
+ * main server thread. {@code mode: none} (or
  * {@code enabled: false}) turns it off and hides the XP part of the yield toast.
  */
 final class XpBridge {
@@ -40,13 +40,13 @@ final class XpBridge {
         if (!present()) {
             debug.full("Skill XP awards are disabled (xp.enabled=false or mode=none).");
         } else {
-            debug.full("Fell drops grant " + skill + " XP via console command: \"" + command + "\".");
+            debug.full("Fell drops grant " + skill + " XP through the configured command bridge.");
         }
     }
 
     /** Whether XP is actually being granted (controls the XP part of the yield toast too). */
     boolean present() {
-        return enabled && !"none".equals(mode) && !command.isEmpty();
+        return enabled && "command".equals(mode) && !command.isEmpty();
     }
 
     /** Grant {@code amount} XP to the player. Safe no-op when disabled, amount<=0, or player is null. */
@@ -56,7 +56,7 @@ final class XpBridge {
                 .replace("%player%", player.getName())
                 .replace("%skill%", skill)
                 .replace("%amount%", Integer.toString(amount));
-        sched.global(() -> {
+        sched.next(() -> {
             try {
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
             } catch (Throwable t) {

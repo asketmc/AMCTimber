@@ -1,16 +1,28 @@
 # Reviewer Notes
 
-AMCTimber adds Valheim-style tree felling for Paper-family Minecraft servers. These notes are written for
-marketplace moderators and server administrators who want a concise review checklist.
+AMCTimber adds Valheim-style tree felling for Paper, Purpur, and Pufferfish 1.20.6-1.21.x only. These
+notes are written for marketplace moderators and server administrators who want a concise review checklist.
 
 ## Runtime Behavior
 
 - Listens to block break and interaction events.
-- Detects natural trees with bounded scanning and configurable caps.
+- Detects natural trees with bounded scanning and configurable caps. The player-build guard is a
+  conservative heuristic, not a guarantee for every custom structure.
 - Spawns non-persistent Display/Interaction entities for the falling-tree visual.
 - Removes or replaces only detected tree/trunk blocks.
 - Stores temporary downed-trunk state in memory only.
-- Respects optional WorldGuard and Towny checks when those plugins are installed.
+- Respects optional WorldGuard and Towny checks when those plugins are installed; hook errors deny by
+  default unless an operator explicitly selects the allow policy.
+- Uses an explicit felling lifecycle, immutable per-fell config snapshots, world-aware active-cut keys,
+  and one global entity budget across falls, landed trunks, and pending recovery yield.
+- Preflights snapshotted block data and uses compensating rollback for partial mutation without
+  overwriting non-air blocks changed by another actor.
+- Retains rejected log delivery in the trunk or a bounded retry queue. Queue state and planned-shutdown
+  transfers use the validated, atomically replaced local `amctimber.pending-yield.v1` file. This is not an
+  exactly-once transaction with world item spawning and does not persist every in-world trunk across a
+  process or host crash.
+- Keeps deterministic QA hooks disabled by default and gates them with the separate `amctimber.qa`
+  permission when enabled.
 - Provides a disabled-by-default, server-operator configured XP command bridge; the command template is
   trusted admin config.
 - Only the player's initial cut is a normal `BlockBreakEvent`; the remaining detected tree blocks are
@@ -27,7 +39,7 @@ marketplace moderators and server administrators who want a concise review check
 - No auto-updater.
 - No remote command/control.
 - No classloader tricks.
-- No reflection-heavy hidden logic. A `Class.forName` probe is used only to detect Folia at runtime.
+- No reflection-heavy hidden logic.
 - No telemetry in the current release.
 
 ## Verification Evidence
@@ -40,7 +52,7 @@ Recommended moderator package:
 - GitHub Release jar: `AMCTimber-x.y.z.jar`
 - SHA256: `SHA256SUMS.txt`
 - Build/test evidence: GitHub Actions `CI` run (`mvn -B -ntp clean verify`)
-- Jar safety: `jar-safety-report.txt`
+- Heuristic jar-hygiene report: `jar-safety-report.txt`
 - SBOMs: `sbom.spdx.json` and `sbom.cdx.json`
 - Signature evidence: `*.sigstore.json`
 - Provenance evidence: GitHub artifact attestation
@@ -51,15 +63,19 @@ Recommended moderator package:
 VirusTotal can be included as an additional hash-based signal for the exact release jar SHA256. It should
 not be described as proof of safety.
 
+The `Paper Runtime Smoke` workflow starts Paper 1.20.6 and the latest stable 1.21 release, runs the built-in
+selftest, checks clean shutdown, and uploads exact-build logs. This is implemented evidence only for those
+Paper runs and checks; it does not establish Purpur/Pufferfish behavior, every 1.21 patch, or gameplay E2E.
+Manual `/amctimber selftest` logs likewise apply only to the exact server, jar, and run that produced them.
+
 ## Manual Review Notes
 
-The release jar safety gate fails if the jar contains native binaries, scripts, nested jars, shaded
-signature metadata, or anything other than exactly one `plugin.yml`.
+The release jar safety gate heuristically fails on known native binary, script, nested jar, shaded
+signature metadata, and `plugin.yml` count patterns. A pass does not guarantee that the jar is harmless.
 
-The runtime-surface gate reports and fails on process execution, native library loading, dynamic
-classloading, hidden reflection APIs, and runtime network API references in `src/main/java`. It reports
-compatibility class probes separately so the Folia detection path stays visible without treating it as
-hidden code loading.
+The runtime-surface gate reports and fails on configured process execution, native library loading,
+dynamic classloading, hidden reflection API, and runtime network API patterns in `src/main/java`. Review
+its rules and allowlists when interpreting the result.
 
 These checks provide verification evidence. They do not replace manual code review or a formal security
 audit.
@@ -71,11 +87,13 @@ Suggested text for Modrinth, Spigot, Hangar, or server-admin review:
 ```text
 This plugin is public-source and not obfuscated. Release jars are built by GitHub Actions from tagged
 source. Each release includes SHA256 checksums, SPDX/CycloneDX SBOMs, Sigstore bundles, GitHub artifact
-attestations, and a jar safety report.
+attestations, and a heuristic jar-hygiene report.
 
-The jar safety gate fails the release if native binaries, scripts, nested jars, or shaded signature
-metadata are present. The plugin does not use native code, runtime downloads, auto-updaters, telemetry, or
-hidden external services. Optional integrations are WorldGuard and Towny.
+The jar-hygiene gate checks for known native binary, script, nested jar, and shaded signature metadata
+patterns. Passing this heuristic does not prove an artifact safe. The plugin does not use native code,
+runtime downloads, auto-updaters, telemetry, or hidden external services. Optional integrations are
+WorldGuard and Towny, whose errors deny by default.
 
-These checks are verification evidence, not a formal third-party security audit.
+These checks are verification evidence, not a certification, safety guarantee, or formal third-party
+security audit.
 ```

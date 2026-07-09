@@ -47,7 +47,7 @@ final class BlockBreakListener implements Listener {
         ItemStack hand = p.getInventory().getItemInMainHand();
         if (cfg.requireAxe && !Tools.isAxe(hand, cfg)) return;
 
-        double[] dir = TreeScanner.fallDir(p.getLocation(), block.getX(), block.getY(), block.getZ());
+        double[] dir = TreeScanner.fallDir(p.getLocation(), block.getX(), block.getZ());
         TreeShape shape = plugin.scanner().scan(block, dir[0], dir[1]);
         if (!shape.isTree) return;                           // ordinary single-log break
         if (!plugin.protection().canFell(p, shape)) return;
@@ -61,7 +61,7 @@ final class BlockBreakListener implements Listener {
             return;                                          // default: let vanilla break the single block
         }
 
-        if (plugin.fellManager().tryFell(p, shape)) {
+        if (plugin.fellManager().tryFell(p, shape, plugin.runtime())) {
             if (shape.stump) {
                 event.setCancelled(true);                    // the axed block stays — it IS the stump
             } else {
@@ -96,23 +96,23 @@ final class BlockBreakListener implements Listener {
         FelledTrunk trunk = plugin.store().byInteraction(interaction);
         if (trunk == null) return false;
         if (!p.hasPermission("amctimber.use")) return false;
-        TimberConfig cfg = plugin.cfg();
+        TimberConfig cfg = trunk.config();
         ItemStack hand = p.getInventory().getItemInMainHand();
         if (cfg.requireAxe && !Tools.isAxe(hand, cfg)) {
-            if (trunk.hintReady(p.getUniqueId())) plugin.messages().needAxe(p);
+            if (trunk.hintReady(p.getUniqueId())) trunk.needAxe(p);
             return true;                                     // handled (no chop without an axe)
         }
-        if (trunk.blockedFor(p, cfg.ownerLock)) {
-            if (trunk.hintReady(p.getUniqueId())) plugin.messages().ownerLocked(p);
+        if (trunk.blockedFor(p)) {
+            if (trunk.hintReady(p.getUniqueId())) trunk.ownerLocked(p);
             return true;
         }
-        if (!trunk.chopReady(p.getUniqueId(), cfg.chopCooldownTicks * 50L)) return true;  // swing spam
+        if (!trunk.chopReady(p.getUniqueId())) return true;  // swing spam
 
         int progress = TimberConfig.progressPerHit(hand.getEnchantmentLevel(Enchantment.EFFICIENCY));
         if (cfg.durabilityPerChopHit > 0 && p.getGameMode() != GameMode.CREATIVE) {
             p.damageItemStack(EquipmentSlot.HAND, cfg.durabilityPerChopHit);
         }
-        boolean done = trunk.chop(p, progress, plugin.fx(), plugin.xpBridge(), plugin.messages(), cfg);
+        boolean done = trunk.chop(p, progress);
         if (done) {
             plugin.store().drop(trunk);
             plugin.debug().full("yielded " + trunk.yieldLogs() + " logs for " + p.getName());

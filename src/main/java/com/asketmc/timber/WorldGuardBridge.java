@@ -12,27 +12,33 @@ import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
 /**
- * Soft WorldGuard bridge. {@link #canBuild} answers "may this player break a block here?" by delegating
- * to WG's own {@code testBuild(BUILD)} query (which already honours region membership and the wg bypass
- * permission). Read-only — no synthetic events, no side effects. Fail-open: if WG is absent or the API
- * throws, we return {@code true}. Presence is reported once in the plugin's enable line, so this is silent.
+ * Soft WorldGuard bridge. {@link #canBreak} asks WorldGuard whether this player may break here.
+ * The query is read-only. An absent installation is neutral; API errors are returned to the configured
+ * protection error policy.
  */
-final class WorldGuardBridge {
+final class WorldGuardBridge implements ProtectionHook {
     private boolean present;
 
-    void init() { present = Bukkit.getPluginManager().getPlugin("WorldGuard") != null; }
+    @Override
+    public String name() { return "WorldGuard"; }
 
-    boolean present() { return present; }
+    @Override
+    public void init() { present = Bukkit.getPluginManager().getPlugin("WorldGuard") != null; }
 
-    boolean canBuild(Player player, Location loc) {
-        if (!present) return true;
+    @Override
+    public boolean present() { return present; }
+
+    @Override
+    public Decision canBreak(Player player, Location loc, org.bukkit.Material material) {
+        if (!present) return Decision.ALLOW;
         try {
-            LocalPlayer lp = WorldGuardPlugin.inst().wrapPlayer(player);
+            LocalPlayer localPlayer = WorldGuardPlugin.inst().wrapPlayer(player);
             RegionContainer container = WorldGuard.getInstance().getPlatform().getRegionContainer();
             RegionQuery query = container.createQuery();
-            return query.testBuild(BukkitAdapter.adapt(loc), lp, Flags.BUILD);
-        } catch (Throwable t) {
-            return true; // fail-open
+            return query.testBuild(BukkitAdapter.adapt(loc), localPlayer, Flags.BUILD)
+                    ? Decision.ALLOW : Decision.DENY;
+        } catch (RuntimeException | LinkageError error) {
+            return Decision.ERROR;
         }
     }
 }

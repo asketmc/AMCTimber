@@ -34,12 +34,13 @@ class GameMathTest {
     }
 
     @Test
-    void hitboxCount_onePerTwoAndAHalfBlocksCappedAtSixteen() {
+    void hitboxCount_onePerTwoAndAHalfBlocksCappedAtSixtyFour() {
         assertEquals(1, FelledTrunk.hitboxCount(1));
         assertEquals(1, FelledTrunk.hitboxCount(2.5));
         assertEquals(2, FelledTrunk.hitboxCount(2.6));
         assertEquals(3, FelledTrunk.hitboxCount(6));
         assertEquals(12, FelledTrunk.hitboxCount(30));
-        assertEquals(16, FelledTrunk.hitboxCount(100)); // capped
+        assertEquals(40, FelledTrunk.hitboxCount(100));
+        assertEquals(64, FelledTrunk.hitboxCount(1000)); // capped
     }
 }

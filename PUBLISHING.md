@@ -30,13 +30,12 @@ from the tagged source and uploads:
 Release process:
 
 ```bash
-git tag v1.0.4
-git push origin v1.0.4
-gh release create v1.0.4 \
+VERSION=1.0.6
+gh release create "v${VERSION}" \
   --repo asketmc/AMCTimber \
-  --target v1.0.4 \
-  --title "AMCTimber v1.0.4" \
-  --notes-file CHANGELOG.md
+  --target main \
+  --title "AMCTimber v${VERSION}" \
+  --generate-notes
 ```
 
 The release workflow enforces that the tag, `pom.xml`, and `plugin.yml` versions match. After the
@@ -69,7 +68,8 @@ Moderator/reviewer package:
 - Optional VirusTotal file-hash report for the exact release jar SHA256.
 - `docs/REVIEWER_NOTES.md`.
 - `qa-reports` CI artifact with JaCoCo, PIT, Surefire and P0 matrix evidence.
-- Paper/Purpur/Folia smoke-test logs for every runtime version claimed in marketplace text.
+- Paper 1.20.6 and latest stable 1.21 runtime-smoke logs. Purpur/Pufferfish compatibility is based on
+  their Paper API compatibility unless separate runtime evidence is attached; Folia is not supported.
 
 VirusTotal is only a weak external reputation signal. It should be presented as "hash X had no detections
 on date Y", not as proof that the plugin is safe.
