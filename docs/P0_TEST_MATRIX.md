@@ -24,6 +24,7 @@ The machine-readable mapping lives beside this document in `docs/p0-test-matrix.
 | P0-010 | Paper boundary-version startup/selftest/shutdown regression | `Paper Runtime Smoke` starts Paper 1.20.6 and the latest stable 1.21 release, runs the built-in selftest, checks clean shutdown, and uploads exact-build logs | Paper Runtime Smoke | implemented |
 | P0-011 | QA mutation hooks exposed in normal operation | `qa.commands-enabled` defaults to false and QA commands use the separate `amctimber.qa` permission; command-level runtime smoke is not automated | unit/config tests; planned runtime smoke | partial |
 | P0-012 | Purpur/Pufferfish, intermediate 1.21 patch, or gameplay-path runtime regression | The Paper endpoint smoke does not exercise these runtimes or a full fell/chop/protection scenario | planned runtime smoke/E2E | planned |
+| P0-013 | Fallen `BlockDisplay` renders black because light is sampled inside terrain | `ToppleAnimatorMathTest.lightAnchor_sitsAboveTheRenderedBlockAndPreservesEveryVertex` proves that the logical light anchor is above the visible block and that rebasing does not move any model vertex; the runtime selftest checks the same contract, but arbitrary client shader packs are not visually automated | unit + P0 tagged tests + Paper selftest; manual shader visual check | partial |
 
 ## Current Gate
 

@@ -13,8 +13,8 @@ import java.util.List;
 /**
  * Console-safe pure-logic self-check ({@code /amctimber selftest}). Exercises the env-independent maths —
  * yield/XP, hits scaling, durability, crush, tool-tier caps, display decimation + trunk shrink, hitbox
- * layout, the rotation axis + transform (incl. the ground-drop), leaf tints, message glyphs — and prints
- * a single {@code PASS n/n} / {@code FAIL ...} line. No world mutation, no entities; safe to run any time.
+ * layout, rotation and display-light anchoring, leaf tints, message glyphs — and prints a single
+ * {@code PASS n/n} / {@code FAIL ...} line. No world mutation, no entities; safe to run any time.
  */
 final class SelfTest {
     private SelfTest() {}
@@ -170,6 +170,19 @@ final class SelfTest {
         double[] lp = ToppleAnimator.landedPos(node, 0, 0, 0, q, 3.0);
         check(tally, fails, "landedPos tracks transform",
                 lp[0] > 5.0 && lp[0] < 6.0 && lp[1] > -3.6 && lp[1] < -3.0 && Math.abs(lp[2] - 0.5) < 1e-3);
+
+        // --- display lighting: sample above visible geometry without moving that geometry ---
+        ToppleAnimator.LightAnchor light = ToppleAnimator.lightAnchor(node, 0, 0, 0, q, 3.0);
+        Transformation litTransform = ToppleAnimator.transformFromAnchor(
+                node, 0, 0, 0, q, 3.0, light.x(), light.y(), light.z());
+        check(tally, fails, "display light anchor above model",
+                Math.abs((light.y() - lp[1]) - ToppleAnimator.LIGHT_SAMPLE_LIFT) < 1e-3);
+        check(tally, fails, "display light anchor preserves corner",
+                Math.abs((light.x() + litTransform.getTranslation().x) - td.getTranslation().x) < 1e-3
+                        && Math.abs((light.y() + litTransform.getTranslation().y)
+                        - td.getTranslation().y) < 1e-3
+                        && Math.abs((light.z() + litTransform.getTranslation().z)
+                        - td.getTranslation().z) < 1e-3);
 
         // --- leaf tints: every overworld leaf resolves (cherry/pale oak ride dedicated particles) ---
         boolean tintsOk = true;
