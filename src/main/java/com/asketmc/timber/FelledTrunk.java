@@ -45,7 +45,7 @@ final class FelledTrunk {
     private final double bx, by, bz;             // trunk base at ground level (pivot after the landing drop)
     private final double dirX, dirZ;
     private final double height;
-    private long despawnAtMillis;
+    private volatile long despawnAtMillis;
     private final int despawnSeconds;
     private final Map<UUID, Long> lastChop = new HashMap<>();  // bounded by trunk lifetime — no quit-leak
     private final Map<UUID, Long> lastHint = new HashMap<>();
@@ -156,9 +156,9 @@ final class FelledTrunk {
         return (int) Math.ceil(displays * (double) (required - progress) / required);
     }
 
-    /** Hitbox segments for a trunk of the given length: one per ~2.5 blocks, 1..8. */
+    /** Hitbox segments for a trunk of the given length: one per ~2.5 blocks, 1..16. */
     static int hitboxCount(double height) {
-        return Math.max(1, Math.min(8, (int) Math.ceil(height / 2.5)));
+        return Math.max(1, Math.min(16, (int) Math.ceil(height / 2.5)));
     }
 
     private Location pointAt(double dist) {

@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 final class FellJobManager {
     private final TimberPlugin plugin;
     private final Set<Long> activeCuts = ConcurrentHashMap.newKeySet();
+    private final Set<FellJob> activeJobs = ConcurrentHashMap.newKeySet();
 
     FellJobManager(TimberPlugin plugin) { this.plugin = plugin; }
 
@@ -36,11 +37,19 @@ final class FellJobManager {
      */
     boolean tryFell(Player owner, TreeShape shape) {
         TimberConfig cfg = plugin.cfg();
+        if (!ToppleAnimator.canRenderLogs(cfg, shape)) {
+            plugin.debug().full("fell rejected: logs=" + shape.logCount()
+                    + " exceeds display cap " + cfg.maxDisplayEntities);
+            return false;
+        }
         long cutKey = key(shape.cutX, shape.cutY, shape.cutZ);
-        if (activeCuts.size() >= cfg.maxConcurrentFells) return false;
-        if (!activeCuts.add(cutKey)) return false;         // already toppling this cut
+        synchronized (activeCuts) {
+            if (activeCuts.size() >= cfg.maxConcurrentFells) return false;
+            if (!activeCuts.add(cutKey)) return false;     // already toppling this cut
+        }
 
         boolean handedOff = false;
+        FellJob job = null;
         try {
             // Canopy loot rolls against the LIVE leaf blocks, so it must happen before removal.
             List<ItemStack> leafLoot = cfg.leafLoot ? collectLeafLoot(shape) : List.of();
@@ -58,16 +67,44 @@ final class FellJobManager {
 
             ToppleAnimator.Rig rig = ToppleAnimator.spawn(cfg, shape);
             UUID ownerId = owner != null ? owner.getUniqueId() : null;
-            new FellJob(plugin, this, shape, rig, ownerId, cutKey, yDrop, leafLoot).start();
+            job = new FellJob(plugin, this, shape, rig, owner, ownerId, cutKey, yDrop, leafLoot);
+            activeJobs.add(job);
+            job.start();
             handedOff = true;
             return true;
         } finally {
-            if (!handedOff) release(cutKey);
+            if (!handedOff) {
+                if (job != null) activeJobs.remove(job);
+                release(cutKey);
+            }
         }
     }
 
     /** Called by a FellJob when it lands — frees the cut slot. */
-    void release(long cutKey) { activeCuts.remove(cutKey); }
+    void finish(FellJob job, long cutKey) {
+        activeJobs.remove(job);
+        release(cutKey);
+    }
+
+    void release(long cutKey) {
+        synchronized (activeCuts) {
+            activeCuts.remove(cutKey);
+        }
+    }
+
+    void shutdown() {
+        for (FellJob job : new ArrayList<>(activeJobs)) {
+            try {
+                job.emergencyDrop();
+            } catch (Throwable ignored) {
+                // Plugin disable must continue even if the world is already unloading.
+            }
+        }
+        activeJobs.clear();
+        synchronized (activeCuts) {
+            activeCuts.clear();
+        }
+    }
 
     /** Vanilla loot-table drops for every collected leaf (rolled per block, merged into stacks). */
     private static List<ItemStack> collectLeafLoot(TreeShape shape) {

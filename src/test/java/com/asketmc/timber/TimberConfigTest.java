@@ -57,6 +57,10 @@ class TimberConfigTest {
         assertEquals(2, cfg.durabilityForFell(6));       // ceil(6 * 0.25) — stump mode charges in full
         assertEquals(10, cfg.durabilityForFell(40));     // ceil(40 * 0.25)
         assertEquals(0, cfg.durabilityForFell(0));
+
+        YamlConfiguration nonStump = new YamlConfiguration();
+        nonStump.set("trunk.leave-stump", false);
+        assertEquals(2, new TimberConfig(nonStump).durabilityForFell(6));
     }
 
     @Test
@@ -88,6 +92,7 @@ class TimberConfigTest {
     void sensibleDefaults() {
         assertEquals(0.8, cfg.logYieldMultiplier);
         assertEquals(2, cfg.xpPerLog);
+        assertTrue(!cfg.xpEnabled);
         assertTrue(cfg.maxHits >= cfg.hitsToFell);
         assertTrue(cfg.leaveStump && cfg.leafLoot && cfg.sneakBypass && cfg.crushEnabled);
     }

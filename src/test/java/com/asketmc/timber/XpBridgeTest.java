@@ -33,7 +33,11 @@ class XpBridgeTest {
 
     @Test
     void presentRequiresEnabledCommandModeAndNonBlankCommand() {
-        assertTrue(new XpBridge(Logger.getAnonymousLogger(), null, new TimberConfig(new YamlConfiguration())).present());
+        assertFalse(new XpBridge(Logger.getAnonymousLogger(), null, new TimberConfig(new YamlConfiguration())).present());
+
+        YamlConfiguration enabled = new YamlConfiguration();
+        enabled.set("xp.enabled", true);
+        assertTrue(new XpBridge(Logger.getAnonymousLogger(), null, new TimberConfig(enabled)).present());
 
         YamlConfiguration noCommand = new YamlConfiguration();
         noCommand.set("xp.command", " ");

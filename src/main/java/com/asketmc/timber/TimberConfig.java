@@ -149,7 +149,7 @@ final class TimberConfig {
         this.crushHitMobs = c.getBoolean("crush.hit-mobs", true);
         this.crushPvp = c.getBoolean("crush.pvp", false);
 
-        this.xpEnabled = c.getBoolean("xp.enabled", true);
+        this.xpEnabled = c.getBoolean("xp.enabled", false);
         this.xpMode = c.getString("xp.mode", "command");
         this.xpPerLog = Math.max(0, c.getInt("xp.per-log", 2));
         this.xpSkill = c.getString("xp.skill", "foraging");
@@ -188,15 +188,10 @@ final class TimberConfig {
         return 1 + Math.max(0, efficiencyLevel) / 2;
     }
 
-    /**
-     * Axe durability charged when a tree of {@code logs} toppled logs is felled. In stump mode the break
-     * event is cancelled (no vanilla charge), so the full amount applies; otherwise vanilla already
-     * charged 1 for the base block.
-     */
+    /** Axe durability charged when a tree of {@code logs} toppled logs is felled. */
     int durabilityForFell(int logs) {
         if (durabilityPerFellLog <= 0 || logs <= 0) return 0;
-        int total = (int) Math.ceil(logs * durabilityPerFellLog);
-        return Math.max(0, leaveStump ? total : total - 1);
+        return (int) Math.ceil(logs * durabilityPerFellLog);
     }
 
     /** Crush damage a toppling tree of {@code logs} logs deals on impact — scales with size, capped. Pure. */

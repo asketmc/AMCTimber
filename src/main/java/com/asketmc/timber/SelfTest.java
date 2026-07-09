@@ -127,9 +127,10 @@ final class SelfTest {
         for (int p = 1; p < 10; p++) shrinkOk &= FelledTrunk.keepCount(3, 10, p) >= 1;
         check(tally, fails, "small trunk never empties early", shrinkOk && FelledTrunk.keepCount(3, 10, 10) == 0);
 
-        // --- hitbox layout: one per ~2.5 blocks, 1..8, strictly inside the trunk line ---
+        // --- hitbox layout: one per ~2.5 blocks, 1..16, strictly inside the trunk line ---
         check(tally, fails, "boxes(6)==3", FelledTrunk.hitboxCount(6) == 3);
-        check(tally, fails, "boxes(30) capped 8", FelledTrunk.hitboxCount(30) == 8);
+        check(tally, fails, "boxes(30)==12", FelledTrunk.hitboxCount(30) == 12);
+        check(tally, fails, "boxes(100) capped 16", FelledTrunk.hitboxCount(100) == 16);
         check(tally, fails, "boxes(1)>=1", FelledTrunk.hitboxCount(1) == 1);
         boolean spreadOk = true;
         int n = FelledTrunk.hitboxCount(12);

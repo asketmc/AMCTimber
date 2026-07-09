@@ -14,14 +14,14 @@ The machine-readable mapping lives beside this document in `docs/p0-test-matrix.
 |---|---|---|---|---|
 | P0-001 | Grief / false-positive felling of player builds | `TreeScannerLogicTest.naturalNeighborGuardRejectsPlayerBuildMaterials` covers the pure material-name guard before Bukkit tag checks | unit + P0 tagged tests | partial |
 | P0-002 | False-positive spread across neighbouring wood species | `TreeScannerLogicTest.speciesOf_materialDelegates_andFencesDifferentWoods`; `TreeScannerLogicTest.leafMatches_sameSpeciesAndAzaleaCountsAsOakOnly` | unit + P0 tagged tests | implemented |
-| P0-003 | Protected region/claim damage from partial tree felling | Current code checks base and all collected logs through `Protection.canFell`; fake bridge/unit harness is not present yet | planned | planned |
-| P0-004 | Stuck `activeCuts` slot causing duplicate-block/DoS behavior | Code uses `try/finally` in launch and landing paths; failure-path unit harness is not present yet | planned | partial |
+| P0-003 | Protected region/claim damage from partial tree felling | Current code checks base/all collected logs through `Protection.canFell` and skips crush damage at protected landing points; fake bridge/unit harness is not present yet | planned | partial |
+| P0-004 | Stuck `activeCuts` slot causing duplicate-block/DoS behavior | Code uses `try/finally` in launch and landing paths, clears active jobs on shutdown, and emergency-drops mid-fall yield; failure-path unit harness is not present yet | planned | partial |
 | P0-005 | Config-driven DoS from expensive settings | `TimberConfigTest.expensiveSettingsHaveUpperBounds`; `TimberConfigTest.lowerBoundsProtectTinyOrNegativeExpensiveSettings` | unit + P0 tagged tests + JaCoCo + PIT | implemented |
 | P0-006 | Native/script/nested jar payload in release artifact | `scripts/check-release-jar.sh`; CI and release dry run fail on native binaries, scripts, nested jars, shaded signature metadata, or missing/duplicate `plugin.yml` | CI + Release Dry Run + Reviewer Evidence | implemented |
 | P0-007 | Release tag/version mismatch | `scripts/verify-release-version.sh` checks `pom.xml`, `plugin.yml`, and release tag consistency | Release Dry Run + Release Security | implemented |
 | P0-008 | Runtime process exec/native load/classloader/network behavior | `scripts/check-runtime-surface.sh` and Semgrep rules; Folia `Class.forName` compatibility probe is reported separately | Reviewer Evidence + Semgrep | implemented |
 | P0-009 | XP bridge runs when disabled | `XpBridgeTest.grantDoesNotTouchPlayerOrSchedulerWhenDisabled`; `TimberConfigTest.xpBridgeCanBeDisabledInConfig` | unit + P0 tagged tests | implemented |
-| P0-010 | Folia scheduler paths use unsafe sync world mutation | Scheduler wrapper centralizes region/global/entity scheduling; automated live Folia smoke evidence is not present yet | planned runtime smoke | partial |
+| P0-010 | Folia scheduler paths use unsafe sync world mutation | Scheduler wrapper centralizes region/global/entity scheduling and admin QA hooks dispatch through region/entity schedulers; automated live Folia smoke evidence is not present yet | planned runtime smoke | partial |
 
 ## Current Gate
 

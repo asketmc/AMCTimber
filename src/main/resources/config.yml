@@ -56,7 +56,7 @@ animation:
   bounce-ticks: 5          # settle/overshoot on landing
   fall-rest-degrees: 88    # stop shy of 90 so the trunk rests on the ground
   overshoot-degrees: 3     # tiny overshoot before settling back to rest
-  max-display-entities: 400 # per-fell cap, clamped to 16..1000 (leaves decimated to fit)
+  max-display-entities: 400 # per-fell display cap, clamped to 16..1000; logs must fit, leaves are decimated
   max-concurrent-fells: 8  # global in-flight cap, clamped to 1..32
   view-range: 1.2          # display view-range multiplier
 
@@ -83,14 +83,14 @@ crush:                     # Valheim-style: the slamming trunk crushes whatever 
   max-damage: 20.0         # cap (20 = a one-shot on an unarmored player, like Valheim)
   radius: 1.6              # how close to the landing line you must be to get hit
   hit-players: true        # the woodcutter gets crushed if they stand where it falls
-  hit-mobs: true           # mobs caught under it take the hit too
+  hit-mobs: true           # mobs caught under it take the hit too; tamed/leashed mobs and villagers are skipped
   pvp: false               # also crush players OTHER than the feller (false = no easy grief in safe zones)
 
 # Skill XP via a console command — bridges to ANY skill engine, no dependency. -
 # The command template is trusted server-operator config, not player-provided input.
 # Placeholders: %player% %skill% %amount%. mode: command | none.
 xp:
-  enabled: true
+  enabled: false             # off by default; enable only after choosing a real skill command below
   mode: command
   per-log: 2               # XP granted per log yielded
   skill: foraging          # the skill name passed to %skill%
