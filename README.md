@@ -6,6 +6,7 @@
 [![Semgrep](https://github.com/asketmc/AMCTimber/actions/workflows/semgrep.yml/badge.svg?branch=main)](https://github.com/asketmc/AMCTimber/actions/workflows/semgrep.yml)
 [![OpenSSF Scorecard](https://github.com/asketmc/AMCTimber/actions/workflows/scorecard.yml/badge.svg?branch=main)](https://github.com/asketmc/AMCTimber/actions/workflows/scorecard.yml)
 [![SBOM](https://github.com/asketmc/AMCTimber/actions/workflows/sbom.yml/badge.svg?branch=main)](https://github.com/asketmc/AMCTimber/actions/workflows/sbom.yml)
+[![Reviewer Evidence](https://github.com/asketmc/AMCTimber/actions/workflows/reviewer-evidence.yml/badge.svg?branch=main)](https://github.com/asketmc/AMCTimber/actions/workflows/reviewer-evidence.yml)
 [![Release Security](https://github.com/asketmc/AMCTimber/actions/workflows/release.yml/badge.svg)](https://github.com/asketmc/AMCTimber/actions/workflows/release.yml)
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
@@ -80,6 +81,8 @@ runtime libraries.
 
 Release assets are accompanied by checksums, SPDX/CycloneDX SBOMs, Sigstore bundles, GitHub artifact
 attestations and a jar safety report. See [release verification](docs/VERIFY_RELEASE.md).
+
+For marketplace moderators and server administrators, see [reviewer notes](docs/REVIEWER_NOTES.md).
 
 ---
 
@@ -189,6 +192,8 @@ CI and release automation provide evidence for:
 - SPDX and CycloneDX SBOM generation.
 - Release checksums, Sigstore/cosign keyless signatures and GitHub artifact attestations.
 - Jar safety checks for native binaries, scripts, nested jars and shaded signature metadata.
+- Reviewer evidence artifacts containing the release jar, SHA256 checksums, SBOMs, jar safety report,
+  Maven test report, dependency report and runtime-surface report.
 
 These controls support verification; they are not a certification or external audit.
 

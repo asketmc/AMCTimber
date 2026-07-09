@@ -57,6 +57,22 @@ Suggested Modrinth metadata:
 - Summary: `Valheim-style tree felling`
 - Source: <https://github.com/asketmc/AMCTimber>
 
+Moderator/reviewer package:
+
+- Public source link: <https://github.com/asketmc/AMCTimber>
+- GitHub Release jar only; no `dist/` jar from the source repo.
+- SHA256 from `SHA256SUMS.txt`.
+- GitHub Actions `CI` run showing `mvn -B -ntp clean verify`.
+- `jar-safety-report.txt`.
+- `sbom.spdx.json` and `sbom.cdx.json`.
+- `*.sigstore.json` bundle and GitHub artifact attestation.
+- Optional VirusTotal file-hash report for the exact release jar SHA256.
+- `docs/REVIEWER_NOTES.md`.
+- Paper/Purpur/Folia smoke-test logs for every runtime version claimed in marketplace text.
+
+VirusTotal is only a weak external reputation signal. It should be presented as "hash X had no detections
+on date Y", not as proof that the plugin is safe.
+
 ## 4. Other Distribution
 
 Hangar or other mirrors should use the same verified GitHub Release jar. Keep release notes, supported
