@@ -11,4 +11,5 @@ P0-009,XP bridge runs when disabled,XpBridgeTest.grantDoesNotTouchPlayerOrSchedu
 P0-010,Paper boundary-version startup/selftest/shutdown regression,Paper Runtime Smoke on 1.20.6 and latest stable 1.21 with exact-build logs,Paper Runtime Smoke,implemented
 P0-011,QA mutation hooks exposed,qa.commands-enabled defaults false and amctimber.qa is separate; command smoke absent,unit/config tests + planned runtime smoke,partial
 P0-012,Purpur/Pufferfish or gameplay-path runtime regression,Paper endpoint smoke does not cover these runtimes or full fell/chop/protection E2E,planned runtime smoke/E2E,planned
+P0-013,fallen BlockDisplay black from terrain light sampling,ToppleAnimatorMathTest.lightAnchor_sitsAboveTheRenderedBlockAndPreservesEveryVertex plus runtime selftest; arbitrary shader rendering remains manual,unit + P0 tagged tests + Paper selftest + manual shader visual check,partial
 

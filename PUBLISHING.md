@@ -30,7 +30,7 @@ from the tagged source and uploads:
 Release process:
 
 ```bash
-VERSION=1.0.6
+VERSION=1.0.7
 gh release create "v${VERSION}" \
   --repo asketmc/AMCTimber \
   --target main \

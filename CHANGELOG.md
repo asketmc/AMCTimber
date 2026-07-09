@@ -5,6 +5,20 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-07-10
+
+### Fixed
+
+- Fixed fallen log displays becoming nearly black when Minecraft sampled their light from an entity
+  position inside the stump or terrain. Display entities now use per-block light anchors above the visible
+  geometry without changing its rendered position or forcing full brightness.
+
+### Notes
+
+- Native sky/block lighting remains enabled, including day/night changes. Shader-pack rendering is
+  client-controlled, so this fix removes the server-side invalid light-sampling position without claiming
+  compatibility with every third-party shader pack.
+
 ## [1.0.6] - 2026-07-09
 
 ### Added
@@ -130,6 +144,7 @@ First public release, extracted and generalised from the internal asketmc build.
 - `/amctimber selftest`.
 - JUnit 5 server-free unit test suite.
 
+[1.0.7]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.7
 [1.0.6]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.6
 [1.0.5]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.5
 [1.0.4]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.4

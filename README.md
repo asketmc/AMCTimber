@@ -46,6 +46,9 @@ runtime libraries.
 - **Skill-XP bridge** — optionally award XP to *any* skill plugin via an explicitly enabled configurable
   command (AuraSkills, mcMMO, a native engine, …) with **zero dependency**.
 - **Atmosphere** — layered creak / fall / impact sounds, dust lines, drifting tinted leaves, canopy crash.
+- **Native display lighting** — every animated block samples light from an anchor above its visible model,
+  avoiding terrain-blackened trunks without forced fullbright; third-party shader rendering remains
+  client-dependent.
 - **i18n** — English + Russian out of the box, MiniMessage-formatted, fully editable; item names localise
   on each client automatically.
 - **Bounded runtime** — every fell has an explicit lifecycle, world-aware duplicate key, immutable config

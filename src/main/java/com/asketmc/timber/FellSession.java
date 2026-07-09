@@ -144,8 +144,10 @@ final class FellSession {
         if (display == null || !display.isValid()) return;
         display.setInterpolationDelay(0);
         display.setInterpolationDuration(durationTicks);
-        display.setTransformation(ToppleAnimator.transform(segment.node,
-                rig.pivotX, rig.pivotY, rig.pivotZ, rotation, drop));
+        Location anchor = display.getLocation();
+        display.setTransformation(ToppleAnimator.transformFromAnchor(segment.node,
+                rig.pivotX, rig.pivotY, rig.pivotZ, rotation, drop,
+                anchor.getX(), anchor.getY(), anchor.getZ()));
     }
 
     private Location pivotLoc() {
