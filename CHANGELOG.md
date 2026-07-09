@@ -5,6 +5,8 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-07-09
+
 ### Added
 
 - Added `SECURITY.md` and moderator-focused `docs/REVIEWER_NOTES.md`.
@@ -100,6 +102,7 @@ First public release, extracted and generalised from the internal asketmc build.
 - `/amctimber selftest`.
 - JUnit 5 server-free unit test suite.
 
+[1.0.5]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.5
 [1.0.4]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.4
 [1.0.3]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.3
 [1.0.2]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.2
