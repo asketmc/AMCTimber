@@ -5,102 +5,237 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
-/**
- * In-memory registry of live {@link FelledTrunk}s (a trunk is reachable from EVERY one of its hitbox
- * UUIDs), plus the cleanup "spine": a per-second sweep that despawns expired/invalid trunks, and a
- * tagged-entity purge run both at start-up and on disable so neither a crash nor a /reload can strand a
- * single display. Our entities are {@code persistent=false} so they never reach the region files anyway —
- * the purge is the belt-and-braces guarantee of zero accumulation.
- *
- * <p><b>Folia.</b> Entity removal must happen on the region thread that owns the entity, so the sweep
- * dispatches each trunk's removal to its own region via {@link Sched}. The cross-region world scan in
- * {@link #purgeTagged} is skipped on Folia (where {@code /reload} is unsupported and persistent=false
- * entities never survive a restart, so there is nothing to reconcile).
- */
+/** Registry and lifecycle cleanup for landed trunks. */
 final class FelledTrunkStore {
     private final Logger log;
     private final Map<UUID, FelledTrunk> index = new ConcurrentHashMap<>();
     private final Set<FelledTrunk> all = ConcurrentHashMap.newKeySet();
+    private final Set<PendingYield> pendingYields = ConcurrentHashMap.newKeySet();
+    private final List<PendingYieldFile.Entry> dormantYields = new ArrayList<>();
+    private EntityBudget budget;
+    private Path recoveryFile;
+    private boolean recoveryStateDirty;
 
-    FelledTrunkStore(Logger log) { this.log = log; }
-
-    void register(FelledTrunk t) {
-        all.add(t);
-        for (UUID id : t.allIds()) index.put(id, t);
+    FelledTrunkStore(Logger log) {
+        this.log = log;
     }
 
-    FelledTrunk byInteraction(Entity e) {
-        return e == null ? null : index.get(e.getUniqueId());
+    void initializeRecovery(Path dataDirectory, EntityBudget entityBudget) {
+        this.budget = entityBudget;
+        this.recoveryFile = dataDirectory.resolve("pending-yields.properties");
+        try {
+            dormantYields.addAll(PendingYieldFile.read(recoveryFile));
+            if (!dormantYields.isEmpty()) {
+                log.warning("loaded " + dormantYields.size() + " pending timber yield record(s)");
+            }
+        } catch (IOException | RuntimeException failure) {
+            quarantineInvalidRecoveryFile(failure);
+        }
+        promoteDormantYields();
+        persistRecoveryState();
     }
 
-    void drop(FelledTrunk t) {
-        all.remove(t);
-        for (UUID id : t.allIds()) index.remove(id);
+    void register(FelledTrunk trunk) {
+        all.add(trunk);
+        for (UUID id : trunk.allIds()) index.put(id, trunk);
     }
 
-    int size() { return all.size(); }
+    FelledTrunk byInteraction(Entity entity) {
+        return entity == null ? null : index.get(entity.getUniqueId());
+    }
 
-    /** Nearest valid trunk to a point within radius (used by the /amctimber test hooks). */
+    void drop(FelledTrunk trunk) {
+        all.remove(trunk);
+        for (UUID id : trunk.allIds()) index.remove(id);
+    }
+
+    int size() {
+        return all.size();
+    }
+
+    int pendingYieldCount() {
+        return pendingYields.size() + dormantYields.size();
+    }
+
+    boolean recoveryCapacityAvailable() {
+        if (budget == null) return false;
+        return pendingYieldCount() + budget.snapshot().maxSessions() <= PendingYieldFile.MAX_ENTRIES;
+    }
+
+    boolean deferYield(World world, Location location, org.bukkit.Material material,
+                       YieldLedger yield, EntityBudget.Reservation reservation) {
+        if (yield.empty() || pendingYieldCount() >= PendingYieldFile.MAX_ENTRIES
+                || !reservation.resize(0)) return false;
+        pendingYields.add(new PendingYield(world, location, material, yield, reservation));
+        log.warning("deferred " + yield.remaining() + " logs after item delivery was rejected");
+        recoveryStateDirty = true;
+        persistRecoveryState();
+        return true;
+    }
+
     FelledTrunk nearest(Location from, double radius) {
         FelledTrunk best = null;
-        double bestSq = radius * radius;
-        for (FelledTrunk t : all) {
-            if (!t.valid()) continue;
-            Location c = t.center();
-            if (c.getWorld() != from.getWorld()) continue;
-            double dsq = c.distanceSquared(from);
-            if (dsq <= bestSq) { bestSq = dsq; best = t; }
+        double bestSquared = radius * radius;
+        for (FelledTrunk trunk : all) {
+            if (!trunk.valid()) continue;
+            Location center = trunk.center();
+            if (center.getWorld() != from.getWorld()) continue;
+            double distanceSquared = center.distanceSquared(from);
+            if (distanceSquared <= bestSquared) {
+                bestSquared = distanceSquared;
+                best = trunk;
+            }
         }
         return best;
     }
 
-    /**
-     * Despawn expired trunks and reap any whose entities went invalid (e.g. chunk unloaded). Runs on the
-     * global region; the actual entity removal is dispatched to each trunk's own region thread (Folia-safe,
-     * a plain main-thread call on Paper).
-     */
-    void sweep(Fx fx, Sched sched) {
+    void sweep() {
         long now = System.currentTimeMillis();
-        for (FelledTrunk t : new ArrayList<>(all)) {
-            if (!t.valid()) { drop(t); sched.atLocation(t.center(), t::remove); continue; }
-            if (now >= t.despawnAtMillis()) {
-                drop(t);
-                Location c = t.center();
-                sched.atLocation(c, () -> { fx.leafRustle(c); t.remove(); });
-            }
-        }
-    }
-
-    /** Kill every timber-tagged entity across all loaded worlds — run at enable AND disable (Paper only). */
-    int purgeTagged(String why) {
-        if (Sched.FOLIA) return 0;   // /reload unsupported + persistent=false ⇒ nothing to reconcile on Folia
-        int killed = 0;
-        for (World w : Bukkit.getWorlds()) {
-            for (Entity e : w.getEntities()) {
-                if (e.getScoreboardTags().contains(Tags.ANIM) || e.getScoreboardTags().contains(Tags.TRUNK)) {
-                    e.remove();
-                    killed++;
+        promoteDormantYields();
+        retryPendingYields(now, false);
+        for (FelledTrunk trunk : new ArrayList<>(all)) {
+            if (!trunk.valid()) {
+                try {
+                    if (!trunk.deferCompletedYield(this, "entity invalidation")) trunk.expire();
+                } finally {
+                    drop(trunk);
+                }
+            } else if (now >= trunk.despawnAtMillis()) {
+                try {
+                    trunk.expire();
+                } finally {
+                    drop(trunk);
                 }
             }
         }
-        if (killed > 0) log.info("purged " + killed + " orphan timber entit(y/ies) (" + why + ").");
+    }
+
+    int purgeTagged(String reason) {
+        int killed = 0;
+        for (World world : Bukkit.getWorlds()) {
+            for (Entity entity : world.getEntities()) {
+                if (!entity.getScoreboardTags().contains(Tags.ANIM)
+                        && !entity.getScoreboardTags().contains(Tags.TRUNK)) continue;
+                entity.remove();
+                killed++;
+            }
+        }
+        if (killed > 0) log.info("purged " + killed + " orphan timber entities (" + reason + ").");
         return killed;
     }
 
-    /** On disable: drop all tracked trunks, then purge anything tagged (covers mid-fall rigs too). */
     void shutdown() {
-        for (FelledTrunk t : all) {
-            try { t.remove(); } catch (Throwable ignored) { /* best-effort; persistent=false ⇒ no disk leak */ }
+        for (FelledTrunk trunk : new ArrayList<>(all)) {
+            try {
+                trunk.deferOnShutdown(this);
+            } catch (RuntimeException | LinkageError failure) {
+                log.warning("trunk shutdown recovery failed: " + failure);
+            }
         }
         all.clear();
         index.clear();
+        boolean persisted = persistRecoveryState();
+        if (!persisted) {
+            retryPendingYields(System.currentTimeMillis(), true);
+            persistRecoveryState();
+        }
+        for (PendingYield pending : new ArrayList<>(pendingYields)) {
+            pending.close();
+        }
+        pendingYields.clear();
+        dormantYields.clear();
         purgeTagged("disable");
+    }
+
+    private void retryPendingYields(long now, boolean force) {
+        boolean changed = false;
+        for (PendingYield pending : new ArrayList<>(pendingYields)) {
+            try {
+                PendingYield.Attempt attempt = pending.attempt(now, force);
+                changed |= attempt.changed();
+                if (attempt.complete()) {
+                    pendingYields.remove(pending);
+                    pending.close();
+                    log.info("delivered deferred timber yield");
+                }
+            } catch (RuntimeException | LinkageError failure) {
+                log.warning("deferred timber yield retry failed: " + failure.getClass().getSimpleName());
+            }
+        }
+        if (changed) {
+            promoteDormantYields();
+            recoveryStateDirty = true;
+        }
+        if (recoveryStateDirty) {
+            if (!persistRecoveryState() && changed) {
+                quarantineRecoveryFile("stale-after-delivery");
+                persistRecoveryState();
+            }
+        }
+    }
+
+    private void promoteDormantYields() {
+        if (budget == null || dormantYields.isEmpty()) return;
+        Iterator<PendingYieldFile.Entry> iterator = dormantYields.iterator();
+        while (iterator.hasNext()) {
+            PendingYieldFile.Entry entry = iterator.next();
+            World world = Bukkit.getWorld(entry.worldId());
+            if (world == null) continue;
+            EntityBudget.Reservation reservation = budget.tryReserve(0);
+            if (reservation == null) return;
+            if (!reservation.resize(0)) {
+                reservation.close();
+                return;
+            }
+            Location location = new Location(world, entry.x(), entry.y(), entry.z());
+            pendingYields.add(new PendingYield(entry.id(), world, location, entry.material(),
+                    new YieldLedger(entry.amount()), reservation));
+            iterator.remove();
+        }
+    }
+
+    private boolean persistRecoveryState() {
+        if (recoveryFile == null) return true;
+        List<PendingYieldFile.Entry> entries = new ArrayList<>(dormantYields);
+        for (PendingYield pending : pendingYields) entries.add(pending.snapshot());
+        try {
+            PendingYieldFile.write(recoveryFile, entries);
+            recoveryStateDirty = false;
+            return true;
+        } catch (IOException | RuntimeException failure) {
+            recoveryStateDirty = true;
+            log.severe("could not persist pending timber yield: " + failure.getMessage());
+            return false;
+        }
+    }
+
+    private void quarantineInvalidRecoveryFile(Exception failure) {
+        log.severe("pending-yield recovery file is invalid: " + failure.getMessage());
+        quarantineRecoveryFile("invalid");
+    }
+
+    private void quarantineRecoveryFile(String reason) {
+        if (recoveryFile == null || !Files.exists(recoveryFile)) return;
+        Path quarantine = recoveryFile.resolveSibling(
+                "pending-yields." + reason + '-' + System.currentTimeMillis() + ".properties");
+        try {
+            Files.move(recoveryFile, quarantine, StandardCopyOption.REPLACE_EXISTING);
+            log.severe("moved recovery data to " + quarantine.getFileName());
+        } catch (IOException moveFailure) {
+            log.severe("could not quarantine recovery data: " + moveFailure.getMessage());
+        }
     }
 }

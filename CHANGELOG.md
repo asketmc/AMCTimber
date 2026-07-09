@@ -5,6 +5,35 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-07-09
+
+### Added
+
+- Added an explicit felling lifecycle shared by falling sessions and landed trunks, with idempotent
+  completion, expiry, failure, and cleanup paths.
+- Added snapshot-checked world mutation with compensating rollback that restores only still-empty blocks.
+- Added immutable per-fell config snapshots, world-aware active-cut keys, and one global entity budget for
+  falling and landed trunk entities.
+- Added validated atomic local journaling (`amctimber.pending-yield.v1`) for bounded recovery queues and
+  planned-shutdown transfer of undelivered in-flight/trunk yield, without claiming an exactly-once
+  transaction across world item spawning and filesystem acknowledgement.
+- Added a Paper runtime-smoke workflow for startup, built-in selftest, and clean shutdown on Paper 1.20.6
+  and the latest stable 1.21 release, with logs retained as workflow artifacts.
+- Release publication now repeats those checks against the exact prepared release jar and records its
+  SHA256 before signing and upload.
+
+### Changed
+
+- Narrowed the supported runtime claim to Paper, Purpur, and Pufferfish 1.20.6-1.21.x only.
+- Protection integration errors now deny by default; operators must explicitly opt into an allow policy.
+- QA command hooks are disabled by default and require the separate `amctimber.qa` permission when enabled.
+- Rejected item spawns no longer advance yield accounting: completed trunks remain retryable and abnormal
+  in-flight recovery enters a bounded retry queue. Rejected display teleports abort landing, while
+  unexpected trunk-entity invalidation expires without granting unchopped yield.
+- Documented the player-build detector as a conservative heuristic, not a guarantee.
+- Runtime smoke is scoped to the exact workflow matrix and checks performed; it does not claim automated
+  Purpur/Pufferfish coverage, every 1.21 patch, or gameplay-path E2E.
+
 ## [1.0.5] - 2026-07-09
 
 ### Added
@@ -27,7 +56,7 @@ Keep a Changelog format.
 
 - Enforced `animation.max-display-entities` for logs as well as leaves.
 - Skipped crush damage at protected landing points and against tamed/leashed mobs and villagers.
-- Routed admin QA test hooks through region/entity schedulers for Folia safety.
+- Routed admin QA test hooks through the server scheduler.
 - Added shutdown cleanup for in-flight falls so mid-animation disables drop the expected log yield instead
   of silently losing the tree.
 - Increased giant-trunk hitbox coverage and fixed non-stump durability charging.
@@ -96,12 +125,12 @@ First public release, extracted and generalised from the internal asketmc build.
 - Treehouse/log-cabin guard and species-aware spreading.
 - Debug levels: `off`, `info`, `full`.
 - Externalised EN/RU messages in `messages.yml`.
-- Folia support through Paper's region/global/entity scheduler APIs.
-- Wide compatibility for Paper, Purpur, Pufferfish, and Folia.
+- Compatibility with Paper, Purpur, and Pufferfish.
 - bStats metrics hook, disabled while the plugin id is `0`.
 - `/amctimber selftest`.
 - JUnit 5 server-free unit test suite.
 
+[1.0.6]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.6
 [1.0.5]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.5
 [1.0.4]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.4
 [1.0.3]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.3

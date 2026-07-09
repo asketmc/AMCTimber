@@ -78,7 +78,8 @@ final class ToppleAnimator {
                              Quaternionf qRest, double yDrop) {
         Transformation t = transform(node, px, py, pz, qRest, yDrop);
         Vector3f tr = t.getTranslation();
-        d.teleport(new Location(d.getWorld(), px + tr.x, py + tr.y, pz + tr.z));
+        boolean moved = d.teleport(new Location(d.getWorld(), px + tr.x, py + tr.y, pz + tr.z));
+        if (!moved) throw new IllegalStateException("landed display teleport was rejected");
         d.setInterpolationDelay(0);
         d.setInterpolationDuration(0);
         d.setTransformation(new Transformation(new Vector3f(0, 0, 0), new Quaternionf(qRest),
@@ -97,22 +98,53 @@ final class ToppleAnimator {
         Rig rig = new Rig();
         rig.pivotX = px; rig.pivotY = py; rig.pivotZ = pz;
 
-        for (TreeShape.Node n : shape.logs) {
-            Transformation start = transform(n, px, py, pz, identity, 0);
-            rig.logs.add(new Seg(spawnOne(cfg, world, at, n, start), n));
-        }
+        try {
+            for (TreeShape.Node n : shape.logs) {
+                Transformation start = transform(n, px, py, pz, identity, 0);
+                rig.logs.add(new Seg(spawnOne(cfg, world, at, n, start), n));
+            }
 
-        int leafBudget = Math.max(0, cfg.maxDisplayEntities - shape.logs.size());
-        List<TreeShape.Node> leaves = decimate(shape.leaves, leafBudget);
-        for (TreeShape.Node n : leaves) {
-            Transformation start = transform(n, px, py, pz, identity, 0);
-            rig.leaves.add(new Seg(spawnOne(cfg, world, at, n, start), n));
+            int leafBudget = Math.max(0, cfg.maxDisplayEntities - shape.logs.size());
+            List<TreeShape.Node> leaves = decimate(shape.leaves, leafBudget);
+            for (TreeShape.Node n : leaves) {
+                Transformation start = transform(n, px, py, pz, identity, 0);
+                rig.leaves.add(new Seg(spawnOne(cfg, world, at, n, start), n));
+            }
+            return rig;
+        } catch (RuntimeException | LinkageError failure) {
+            remove(rig);
+            throw failure;
         }
-        return rig;
     }
 
     static boolean canRenderLogs(TimberConfig cfg, TreeShape shape) {
         return shape.logs.size() <= cfg.maxDisplayEntities;
+    }
+
+    static int renderedCount(TimberConfig cfg, TreeShape shape) {
+        int leaves = Math.min(shape.leaves.size(), Math.max(0, cfg.maxDisplayEntities - shape.logs.size()));
+        return shape.logs.size() + leaves;
+    }
+
+    static int plannedPeakEntities(TimberConfig cfg, TreeShape shape) {
+        int landed = shape.logs.size() + FelledTrunk.hitboxCount(shape.height);
+        return Math.max(renderedCount(cfg, shape), landed);
+    }
+
+    static void remove(Rig rig) {
+        if (rig == null) return;
+        for (Seg segment : rig.leaves) removeBestEffort(segment.display);
+        for (Seg segment : rig.logs) removeBestEffort(segment.display);
+        rig.leaves.clear();
+        rig.logs.clear();
+    }
+
+    private static void removeBestEffort(BlockDisplay display) {
+        try {
+            if (display != null && display.isValid()) display.remove();
+        } catch (RuntimeException | LinkageError ignored) {
+            // Startup/shutdown orphan sweeping is the final cleanup backstop.
+        }
     }
 
     private static BlockDisplay spawnOne(TimberConfig cfg, World world, Location at,

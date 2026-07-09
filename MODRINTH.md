@@ -19,24 +19,25 @@ trees are one layer of a deeper survival experience, alongside **temperature, fi
 events** and more custom mechanics. Come chop a forest with us → **https://asketmc.com**
 
 ## Features
-- 🌳 **Whole-tree topple** with a real falling animation (vanilla Display entities — no lag, no client mod)
+- 🌳 **Whole-tree topple** with a client-interpolated, bounded Display-entity animation (no client mod)
 - 🪵 **Stump + downed trunk** you re-chop for logs (reduced yield — finish the job)
 - 🪓 **Tool-tier scaling** — wooden axe = saplings; **diamond/netherite = 2×2 jungle giants**
 - 💥 **Crush damage** — don't stand where it lands
-- 🏠 **Your builds are safe** — anything touching a player-placed block never auto-fells (no accidentally
-  chopping down your house/treehouse); **species-aware**; optional WorldGuard/Towny respect
+- 🏠 **Conservative build guard** — rejects common player-build materials and suspicious tree shapes;
+  this is a heuristic, so use WorldGuard/Towny for important builds
 - ⭐ **Skill-XP bridge** to *any* skill plugin (AuraSkills, mcMMO, …) via a configurable command
 - 🌍 **EN + RU** built in (MiniMessage, fully editable), auto-localised item names
-- 🧵 **Folia-native**, and **zero entity bloat** (everything ephemeral, capped, swept)
+- **Bounded ephemeral entities** - one global cap covers active falls and landed trunks; tagged entities
+  are swept on startup and planned shutdown
 
 ## Compatibility
-**Paper / Purpur / Pufferfish / Folia**, Minecraft **1.20.6 → 1.21.x**, Java 21+.
-Not for Spigot. WorldGuard & Towny are optional (fail-open).
+**Paper / Purpur / Pufferfish**, Minecraft **1.20.6-1.21.x**, Java 21+.
+Not for Spigot or Folia. WorldGuard & Towny are optional; installed-hook errors deny by default.
 
 ## Links
 - 📖 Source & issues: https://github.com/asketmc/AMCTimber
 - 🔍 Release verification / reviewer notes: https://github.com/asketmc/AMCTimber/blob/main/docs/REVIEWER_NOTES.md
-- 🎮 Built for **[asketmc.com](https://asketmc.com)** — survival, CIS & EU. Come play! *(Discord: `discord.gg/your-invite`)*
+- 🎮 Built for **[asketmc.com](https://asketmc.com)** — survival, CIS & EU. Come play! *(Discord: https://discord.gg/2MuA3Nv)*
 
 ## Security / Review Notes
 
@@ -44,9 +45,10 @@ This plugin is public-source and not obfuscated. Release jars are built by GitHu
 source. Each release includes SHA256 checksums, SPDX/CycloneDX SBOMs, Sigstore bundles, GitHub artifact
 attestations, and a jar safety report.
 
-The jar safety gate fails the release if native binaries, scripts, nested jars, or shaded signature
-metadata are present. The plugin does not use native code, runtime downloads, auto-updaters, telemetry, or
-hidden external services. Optional integrations are WorldGuard and Towny.
+The heuristic jar-hygiene gate is configured to fail on native binaries, scripts, nested jars, or shaded
+signature metadata. Its pass is scoped pattern evidence, not proof of safety. The plugin does not use
+native code, runtime downloads, auto-updaters, telemetry, or hidden external services. Optional
+integrations are WorldGuard and Towny.
 
 These checks are verification evidence, not a formal third-party security audit.
 

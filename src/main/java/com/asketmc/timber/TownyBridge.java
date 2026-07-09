@@ -10,23 +10,30 @@ import org.bukkit.entity.Player;
 
 /**
  * Soft Towny bridge. {@link #canDestroy} answers "may this player destroy a block here?" using Towny's
- * own cached DESTROY permission (wilderness is always allowed). Read-only, main-thread. Fail-open: absent
- * Towny or any API error returns {@code true}. Presence is reported once in the enable line, so silent.
+ * own cached DESTROY permission (wilderness is always allowed). Read-only and main-thread. An absent
+ * Towny installation is neutral; API errors are returned to the configured protection error policy.
  */
-final class TownyBridge {
+final class TownyBridge implements ProtectionHook {
     private boolean present;
 
-    void init() { present = Bukkit.getPluginManager().getPlugin("Towny") != null; }
+    @Override
+    public String name() { return "Towny"; }
 
-    boolean present() { return present; }
+    @Override
+    public void init() { present = Bukkit.getPluginManager().getPlugin("Towny") != null; }
 
-    boolean canDestroy(Player player, Location loc, Material material) {
-        if (!present) return true;
+    @Override
+    public boolean present() { return present; }
+
+    @Override
+    public Decision canBreak(Player player, Location loc, Material material) {
+        if (!present) return Decision.ALLOW;
         try {
-            if (TownyAPI.getInstance().isWilderness(loc)) return true;
-            return PlayerCacheUtil.getCachePermission(player, loc, material, TownyPermission.ActionType.DESTROY);
-        } catch (Throwable t) {
-            return true; // fail-open
+            if (TownyAPI.getInstance().isWilderness(loc)) return Decision.ALLOW;
+            return PlayerCacheUtil.getCachePermission(player, loc, material, TownyPermission.ActionType.DESTROY)
+                    ? Decision.ALLOW : Decision.DENY;
+        } catch (RuntimeException | LinkageError error) {
+            return Decision.ERROR;
         }
     }
 }

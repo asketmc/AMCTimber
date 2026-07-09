@@ -16,97 +16,116 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/**
- * A landed, choppable trunk: the rotated log {@link BlockDisplay}s (kept from the topple, lying flat,
- * ordered far-end-first so chopping shortens the trunk toward the base) plus a ROW of {@link Interaction}
- * hitboxes spaced along the whole length, so swinging anywhere on the trunk works. Owner rides a
- * scoreboard tag, never PDC. Yields logs only when fully chopped ("reduced yield, must chop fully");
- * auto-despawns past its deadline, but every chop refreshes the timer so nobody loses a trunk mid-work.
- */
+/** Landed trunk state with idempotent completion, expiry, and planned-shutdown recovery. */
 final class FelledTrunk {
-
-    /** One hitbox segment + its distance from the trunk base along the fall direction. */
     static final class Hitbox {
         final Interaction entity;
         final double dist;
-        Hitbox(Interaction entity, double dist) { this.entity = entity; this.dist = dist; }
+
+        Hitbox(Interaction entity, double dist) {
+            this.entity = entity;
+            this.dist = dist;
+        }
     }
 
     private final World world;
-    private final List<BlockDisplay> displays;   // far end first — shrinks toward the base
-    private final List<Hitbox> hitboxes;         // base→far order; index 0 always survives until done
-    private final Set<UUID> ids;                 // every hitbox UUID, snapshotted for store (de)registration
+    private final List<BlockDisplay> displays;
+    private final List<Hitbox> hitboxes;
+    private final Set<UUID> ids;
     final UUID owner;
     private final Material dropMaterial;
-    private final int yieldLogs;
+    private final int totalYield;
+    private final YieldLedger yield;
     private final int required;
     private final int initialDisplays;
     private int progress;
-    private final double bx, by, bz;             // trunk base at ground level (pivot after the landing drop)
+    private final double baseX, baseY, baseZ;
     private final double dirX, dirZ;
     private final double height;
     private volatile long despawnAtMillis;
-    private final int despawnSeconds;
-    private final Map<UUID, Long> lastChop = new HashMap<>();  // bounded by trunk lifetime — no quit-leak
+    private final TimberConfig cfg;
+    private final Fx fx;
+    private final XpBridge xpBridge;
+    private final Messages messages;
+    private final Debug debug;
+    private final FellLifecycle lifecycle;
+    private final EntityBudget.Reservation reservation;
+    private final Map<UUID, Long> lastChop = new HashMap<>();
     private final Map<UUID, Long> lastHint = new HashMap<>();
 
-    FelledTrunk(World world, List<BlockDisplay> displaysFarFirst, List<Hitbox> hitboxes, UUID owner,
-                Material dropMaterial, int yieldLogs, int required,
-                double bx, double by, double bz, double dirX, double dirZ, double height,
-                int despawnSeconds) {
+    FelledTrunk(World world, List<BlockDisplay> displays, List<Hitbox> hitboxes, UUID owner,
+                Material dropMaterial, YieldLedger yield, int required,
+                double baseX, double baseY, double baseZ, double dirX, double dirZ, double height,
+                TimberConfig cfg, Fx fx, XpBridge xpBridge, Messages messages, Debug debug,
+                FellLifecycle lifecycle, EntityBudget.Reservation reservation) {
         this.world = world;
-        this.displays = displaysFarFirst;
+        this.displays = displays;
         this.hitboxes = hitboxes;
         this.ids = new HashSet<>();
-        for (Hitbox h : hitboxes) ids.add(h.entity.getUniqueId());
+        for (Hitbox hitbox : hitboxes) ids.add(hitbox.entity.getUniqueId());
         this.owner = owner;
         this.dropMaterial = dropMaterial;
-        this.yieldLogs = yieldLogs;
+        this.totalYield = yield.remaining();
+        this.yield = yield;
         this.required = Math.max(1, required);
-        this.initialDisplays = Math.max(1, displaysFarFirst.size());
-        this.bx = bx; this.by = by; this.bz = bz;
-        this.dirX = dirX; this.dirZ = dirZ;
+        this.initialDisplays = Math.max(1, displays.size());
+        this.baseX = baseX;
+        this.baseY = baseY;
+        this.baseZ = baseZ;
+        this.dirX = dirX;
+        this.dirZ = dirZ;
         this.height = height;
-        this.despawnSeconds = despawnSeconds;
-        this.despawnAtMillis = System.currentTimeMillis() + despawnSeconds * 1000L;
+        this.cfg = cfg;
+        this.fx = fx;
+        this.xpBridge = xpBridge;
+        this.messages = messages;
+        this.debug = debug;
+        this.lifecycle = lifecycle;
+        this.reservation = reservation;
+        this.despawnAtMillis = System.currentTimeMillis() + cfg.despawnSeconds * 1000L;
     }
 
-    Set<UUID> allIds() { return ids; }
+    TimberConfig config() {
+        return cfg;
+    }
 
-    long despawnAtMillis() { return despawnAtMillis; }
+    Set<UUID> allIds() {
+        return ids;
+    }
 
-    boolean valid() {
-        for (Hitbox h : hitboxes) if (h.entity.isValid()) return true;
+    long despawnAtMillis() {
+        return despawnAtMillis;
+    }
+
+    synchronized boolean valid() {
+        for (Hitbox hitbox : hitboxes) if (hitbox.entity.isValid()) return true;
         return false;
     }
 
-    /** A non-owner is blocked only when owner-lock is on. */
-    boolean blockedFor(Player p, boolean ownerLock) {
-        return ownerLock && owner != null && !owner.equals(p.getUniqueId());
+    boolean blockedFor(Player player) {
+        return cfg.ownerLock && owner != null && !owner.equals(player.getUniqueId());
     }
 
-    /** Mid-trunk point (for nearest-lookup and final fx). */
     Location center() {
-        return new Location(world, bx + dirX * height * 0.5, by + 0.5, bz + dirZ * height * 0.5);
+        return new Location(world, baseX + dirX * height * 0.5,
+                baseY + 0.5, baseZ + dirZ * height * 0.5);
     }
 
-    /** First still-valid hitbox (for the /amctimber test attack|use hooks). */
-    Interaction anyHitbox() {
-        for (Hitbox h : hitboxes) if (h.entity.isValid()) return h.entity;
+    synchronized Interaction anyHitbox() {
+        for (Hitbox hitbox : hitboxes) if (hitbox.entity.isValid()) return hitbox.entity;
         return null;
     }
 
-    /** Anti-spam gate: true once per cooldown window per player (and records the new hit time). */
-    boolean chopReady(UUID player, long cooldownMs) {
+    synchronized boolean chopReady(UUID player) {
         long now = System.currentTimeMillis();
+        long cooldownMillis = cfg.chopCooldownTicks * 50L;
         Long last = lastChop.get(player);
-        if (last != null && now - last < cooldownMs) return false;
+        if (last != null && now - last < cooldownMillis) return false;
         lastChop.put(player, now);
         return true;
     }
 
-    /** Rate-limits the "need an axe" / "owner locked" action-bar hints. */
-    boolean hintReady(UUID player) {
+    synchronized boolean hintReady(UUID player) {
         long now = System.currentTimeMillis();
         Long last = lastHint.get(player);
         if (last != null && now - last < 1500L) return false;
@@ -114,79 +133,159 @@ final class FelledTrunk {
         return true;
     }
 
-    /**
-     * Register chop progress. Plays feedback, proportionally shortens the lying trunk (and trims hitboxes
-     * past the new end), refreshes the despawn timer; on completion drops the yield spread along the trunk
-     * line, grants XP, toasts the chopper. Returns true when fully chopped (caller drops it from the store).
-     */
-    boolean chop(Player p, int amount, Fx fx, XpBridge xpBridge, Messages msgs, TimberConfig cfg) {
+    /** Returns true when the trunk reached a terminal state and must be removed from the store. */
+    synchronized boolean chop(Player player, int amount) {
+        if (!lifecycle.is(FellLifecycle.State.LANDED)) return lifecycle.terminal();
         progress = Math.min(required, progress + Math.max(1, amount));
-        despawnAtMillis = System.currentTimeMillis() + despawnSeconds * 1000L;
+        despawnAtMillis = System.currentTimeMillis() + cfg.despawnSeconds * 1000L;
 
-        double frac = progress / (double) required;
-        fx.chopHit(pointAt(Math.max(0.5, height * (1.0 - frac) * 0.9)), dropMaterial.createBlockData(), frac);
-        shrinkTo(keepCount(initialDisplays, required, progress));
-
+        double fraction = progress / (double) required;
+        fx.chopHit(pointAt(Math.max(0.5, height * (1.0 - fraction) * 0.9)),
+                dropMaterial.createBlockData(), fraction);
         if (progress < required) {
-            msgs.progress(p, progress, required);
+            shrinkTo(keepCount(initialDisplays, required, progress));
+            messages.progress(player, progress, required);
             return false;
         }
 
-        // Fully chopped → drop the yield spread along where the trunk lay, grant XP, toast.
-        int remaining = yieldLogs;
-        int k = 0;
-        while (remaining > 0) {
-            int stack = Math.min(64, remaining);
-            double d = Math.min(height - 0.5, 1.0 + k * 2.0);
-            world.dropItemNaturally(pointAt(Math.max(0.5, d)), new ItemStack(dropMaterial, stack));
-            remaining -= stack;
-            k++;
+        if (!lifecycle.beginCompletion()) return lifecycle.terminal();
+        boolean cleanup = true;
+        try {
+            dropRemainingYield();
+            int xp = cfg.xpFor(totalYield);
+            xpBridge.grant(player, xp);
+            fx.chopBreak(center(), dropMaterial.createBlockData());
+            messages.yield(player, dropMaterial, totalYield, xp, xpBridge.present());
+            lifecycle.complete();
+        } catch (RuntimeException | LinkageError failure) {
+            int remaining = yield.remaining();
+            if (remaining > 0 && lifecycle.retryCompletion()) {
+                cleanup = false;
+                despawnAtMillis = Long.MAX_VALUE;
+                debug.warn("trunk yield delivery deferred; remaining logs=" + remaining);
+                return false;
+            }
+            lifecycle.fail();
+            debug.warn("trunk completion failed; recovering remaining yield: " + failure.getClass().getSimpleName());
+        } finally {
+            if (cleanup) cleanupEntitiesAndBudget();
         }
-        int xp = cfg.xpFor(yieldLogs);
-        xpBridge.grant(p, xp);
-        fx.chopBreak(center(), dropMaterial.createBlockData());
-        msgs.yield(p, dropMaterial, yieldLogs, xp, xpBridge.present());
-        remove();
         return true;
     }
 
-    /** Displays kept after {@code progress} of {@code required} chops — hits exactly 0 on the last hit. */
+    synchronized void expire() {
+        if (!lifecycle.expire()) return;
+        try {
+            fx.leafRustle(center());
+        } catch (RuntimeException | LinkageError failure) {
+            debug.warn("trunk expiry effect failed: " + failure.getClass().getSimpleName());
+        } finally {
+            cleanupEntitiesAndBudget();
+        }
+    }
+
+    synchronized void deferOnShutdown(FelledTrunkStore store) {
+        if (!lifecycle.fail()) return;
+        int remaining = yield.remaining();
+        boolean deferred = false;
+        try {
+            deferred = remaining == 0 || store.deferYield(world, center(), dropMaterial, yield, reservation);
+            if (remaining > 0) {
+                debug.warn((deferred ? "persisting " : "could not persist ") + remaining
+                        + " pending logs during plugin shutdown");
+            }
+        } finally {
+            cleanupEntities(deferred && remaining > 0);
+        }
+    }
+
+    synchronized boolean deferCompletedYield(FelledTrunkStore store, String reason) {
+        int remaining = yield.remaining();
+        if (progress < required || remaining == 0 || !lifecycle.is(FellLifecycle.State.LANDED)) return false;
+        if (!lifecycle.fail()) return false;
+        boolean deferred = false;
+        try {
+            deferred = store.deferYield(world, center(), dropMaterial, yield, reservation);
+            debug.warn((deferred ? "moved completed trunk yield to recovery queue after "
+                    : "could not retain completed trunk yield after ") + reason
+                    + "; remaining logs=" + remaining);
+            return true;
+        } finally {
+            cleanupEntities(deferred);
+        }
+    }
+
     static int keepCount(int displays, int required, int progress) {
         if (progress >= required) return 0;
         return (int) Math.ceil(displays * (double) (required - progress) / required);
     }
 
-    /** Hitbox segments for a trunk of the given length: one per ~2.5 blocks, 1..16. */
     static int hitboxCount(double height) {
-        return Math.max(1, Math.min(16, (int) Math.ceil(height / 2.5)));
+        return Math.max(1, Math.min(64, (int) Math.ceil(height / 2.5)));
     }
 
-    private Location pointAt(double dist) {
-        return new Location(world, bx + dirX * dist, by + 0.6, bz + dirZ * dist);
+    private Location pointAt(double distance) {
+        return new Location(world, baseX + dirX * distance, baseY + 0.6, baseZ + dirZ * distance);
+    }
+
+    private void dropRemainingYield() {
+        int stackIndex = 0;
+        int amount;
+        while ((amount = yield.nextStack()) > 0) {
+            double distance = Math.min(height - 0.5, 1.0 + stackIndex * 2.0);
+            int delivered = ItemDelivery.tryDeliver(world, pointAt(Math.max(0.5, distance)),
+                    new ItemStack(dropMaterial, amount));
+            if (delivered > 0) yield.delivered(delivered);
+            if (delivered < amount) throw new IllegalStateException("item delivery was rejected");
+            stackIndex++;
+        }
     }
 
     private void shrinkTo(int keep) {
         while (displays.size() > keep) {
-            BlockDisplay seg = displays.remove(0);             // far end first
-            if (seg != null && seg.isValid()) seg.remove();
+            BlockDisplay display = displays.removeFirst();
+            removeBestEffort(display);
         }
-        double keptLen = height * displays.size() / (double) initialDisplays;
-        for (int i = hitboxes.size() - 1; i > 0; i--) {        // never trim the base hitbox
-            Hitbox h = hitboxes.get(i);
-            if (h.dist > keptLen + 1.0) {
-                if (h.entity.isValid()) h.entity.remove();
-                hitboxes.remove(i);
-            }
+        double keptLength = height * displays.size() / (double) initialDisplays;
+        for (int index = hitboxes.size() - 1; index > 0; index--) {
+            Hitbox hitbox = hitboxes.get(index);
+            if (hitbox.dist <= keptLength + 1.0) continue;
+            removeBestEffort(hitbox.entity);
+            hitboxes.remove(index);
+        }
+        if (!reservation.resize(displays.size() + hitboxes.size())) {
+            throw new IllegalStateException("entity budget accounting rejected a decreasing resize");
         }
     }
 
-    /** Kill every entity backing this trunk (displays + hitboxes). Idempotent. */
-    void remove() {
-        for (BlockDisplay d : displays) if (d != null && d.isValid()) d.remove();
-        displays.clear();
-        for (Hitbox h : new ArrayList<>(hitboxes)) if (h.entity.isValid()) h.entity.remove();
-        hitboxes.clear();
+    private void cleanupEntitiesAndBudget() {
+        cleanupEntities(false);
     }
 
-    int yieldLogs() { return yieldLogs; }
+    private void cleanupEntities(boolean keepReservation) {
+        try {
+            for (BlockDisplay display : displays) removeBestEffort(display);
+            displays.clear();
+            for (Hitbox hitbox : new ArrayList<>(hitboxes)) removeBestEffort(hitbox.entity);
+            hitboxes.clear();
+        } finally {
+            if (!keepReservation) reservation.close();
+        }
+    }
+
+    private static void removeBestEffort(org.bukkit.entity.Entity entity) {
+        try {
+            if (entity != null && entity.isValid()) entity.remove();
+        } catch (RuntimeException | LinkageError ignored) {
+            // The tagged-entity sweep remains the shutdown/startup cleanup backstop.
+        }
+    }
+
+    void needAxe(Player player) { messages.needAxe(player); }
+
+    void ownerLocked(Player player) { messages.ownerLocked(player); }
+
+    int yieldLogs() {
+        return totalYield;
+    }
 }

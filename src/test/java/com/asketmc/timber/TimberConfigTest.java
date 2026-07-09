@@ -104,6 +104,9 @@ class TimberConfigTest {
         yml.set("detection.max-tree-blocks", 1_000_000);
         yml.set("animation.max-display-entities", 1_000_000);
         yml.set("animation.max-concurrent-fells", 1_000_000);
+        yml.set("animation.max-live-trunks", 1_000_000);
+        yml.set("animation.max-total-entities", 1_000_000);
+        yml.set("detection.max-scan-reads", 1_000_000);
         yml.set("trunk.despawn-seconds", 1_000_000);
 
         TimberConfig capped = new TimberConfig(yml);
@@ -111,6 +114,9 @@ class TimberConfigTest {
         assertEquals(TimberConfig.MAX_TREE_BLOCKS_CAP, capped.maxTreeBlocks);
         assertEquals(TimberConfig.MAX_DISPLAY_ENTITIES_CAP, capped.maxDisplayEntities);
         assertEquals(TimberConfig.MAX_CONCURRENT_FELLS_CAP, capped.maxConcurrentFells);
+        assertEquals(TimberConfig.MAX_LIVE_TRUNKS_CAP, capped.maxLiveTrunks);
+        assertEquals(TimberConfig.MAX_TOTAL_ENTITIES_CAP, capped.maxTotalEntities);
+        assertEquals(TimberConfig.MAX_SCAN_READS_CAP, capped.maxScanReads);
         assertEquals(TimberConfig.MAX_DESPAWN_SECONDS_CAP, capped.despawnSeconds);
     }
 
@@ -132,6 +138,9 @@ class TimberConfigTest {
         yml.set("detection.max-tree-blocks", -1);
         yml.set("animation.max-display-entities", -1);
         yml.set("animation.max-concurrent-fells", -1);
+        yml.set("animation.max-live-trunks", -1);
+        yml.set("animation.max-total-entities", -1);
+        yml.set("detection.max-scan-reads", -1);
         yml.set("trunk.despawn-seconds", -1);
 
         TimberConfig bounded = new TimberConfig(yml);
@@ -139,6 +148,9 @@ class TimberConfigTest {
         assertEquals(50, bounded.maxTreeBlocks);
         assertEquals(16, bounded.maxDisplayEntities);
         assertEquals(1, bounded.maxConcurrentFells);
+        assertEquals(1, bounded.maxLiveTrunks);
+        assertEquals(64, bounded.maxTotalEntities);
+        assertEquals(1_000, bounded.maxScanReads);
         assertEquals(10, bounded.despawnSeconds);
     }
 
@@ -183,5 +195,21 @@ class TimberConfigTest {
         assertEquals(1, parsed.axeExtraItems.size());
         assertTrue(parsed.extraNatural.contains(org.bukkit.Material.COBBLESTONE));
         assertEquals(1, parsed.extraNatural.size());
+    }
+
+    @Test
+    void securitySensitiveModesAreNormalizedToSafeDefaults() {
+        YamlConfiguration yml = new YamlConfiguration();
+        yml.set("detection.protection-error-policy", "unexpected");
+        yml.set("xp.mode", "unexpected");
+        yml.set("tool-scaling.too-weak-action", "unexpected");
+        yml.set("qa.commands-enabled", true);
+
+        TimberConfig parsed = new TimberConfig(yml);
+
+        assertTrue(parsed.protectionFailClosed);
+        assertEquals("none", parsed.xpMode);
+        assertEquals("vanilla", parsed.tooWeakAction);
+        assertTrue(parsed.qaCommandsEnabled);
     }
 }

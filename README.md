@@ -10,7 +10,7 @@
 [![Release Security](https://github.com/asketmc/AMCTimber/actions/workflows/release.yml/badge.svg)](https://github.com/asketmc/AMCTimber/actions/workflows/release.yml)
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
-**Valheim-style tree felling for Paper, Purpur, Pufferfish & Folia (MC 1.20.6 → 1.21.x).**
+**Valheim-style tree felling for Paper, Purpur, and Pufferfish on Minecraft 1.20.6-1.21.x only.**
 
 Chop the base of a tree and the whole thing **topples over** — a smooth, client-interpolated fall that
 leaves a stump behind, just like Valheim. The downed trunk lies on the ground and has to be **chopped
@@ -39,20 +39,19 @@ runtime libraries.
   down a 2×2 jungle giant**. Fully configurable per tier.
 - **Crush damage** — stand where a giant lands and it flattens you (size-scaled, capped, PvP-safe by default;
   protected landing points, tamed/leashed mobs, and villagers are skipped).
-- **Your builds are safe** — a "tree" touching *any* player-placed block (planks, fences, glass, beds,
-  stairs, …) is treated as a structure and **never auto-fells**, so you'll never accidentally topple your
-  house or treehouse. Sneak-to-bypass for builders, plus optional **WorldGuard region** & **Towny claim**
-  respect on top.
+- **Conservative player-build guard** — a scan touching common construction blocks (planks, fences,
+  glass, beds, stairs, …) is rejected as a structure. This is a heuristic, not a guarantee for every
+  custom build or treehouse; protect important areas with **WorldGuard** or **Towny** and test local rules.
 - **Species-aware** — felling never spreads across wood types; one oak won't drag a neighbouring birch down.
 - **Skill-XP bridge** — optionally award XP to *any* skill plugin via an explicitly enabled configurable
   command (AuraSkills, mcMMO, a native engine, …) with **zero dependency**.
 - **Atmosphere** — layered creak / fall / impact sounds, dust lines, drifting tinted leaves, canopy crash.
 - **i18n** — English + Russian out of the box, MiniMessage-formatted, fully editable; item names localise
   on each client automatically.
-- **Folia-native** — every world/entity action runs on the correct region thread. Runs unmodified on
-  Paper *and* Folia.
-- **Zero entity bloat** — every spawned entity is non-persistent, tagged, capped, swept every second, and
-  purged on enable/disable. Nothing accumulates in your region files.
+- **Bounded runtime** — every fell has an explicit lifecycle, world-aware duplicate key, immutable config
+  snapshot, and a reservation in one global entity budget shared by falls, trunks, and pending recovery.
+- **Ephemeral entities** — spawned entities are non-persistent, tagged, capped, swept, and removed during
+  planned shutdown recovery. Startup cleanup handles tagged leftovers after an unclean stop.
 
 ---
 
@@ -60,15 +59,15 @@ runtime libraries.
 
 | | |
 |---|---|
-| **Server software** | Paper, Purpur, Pufferfish, **Folia** (and other Paper forks) |
-| **Minecraft** | **1.20.6 → 1.21.x** (one jar) |
+| **Server software** | **Paper, Purpur, Pufferfish only** |
+| **Minecraft** | **1.20.6-1.21.x** (one jar) |
 | **Java** | 21+ |
 | **Spigot** | ❌ not supported (the plugin uses modern Display/Interaction entities + Adventure) |
-| **Dependencies** | none required; **WorldGuard** & **Towny** are optional, fail-open integrations |
+| **Dependencies** | none required; **WorldGuard** & **Towny** are optional; hook errors deny by default |
 
-> Built against the 1.20.6 API and intended for 1.20.6 through current 1.21.x Paper-family servers.
-> Public CI is server-free Maven/JUnit verification; operators can run `/amctimber selftest` on a live
-> server to verify runtime registry-backed paths.
+> Built against the Paper 1.20.6 API and intended only for Paper, Purpur, and Pufferfish 1.20.6-1.21.x.
+> `Paper Runtime Smoke` starts Paper 1.20.6 and the latest stable 1.21 release, runs the built-in selftest,
+> and checks clean shutdown. It does not cover Purpur, Pufferfish, every 1.21 patch, or gameplay E2E.
 
 ---
 
@@ -81,7 +80,7 @@ runtime libraries.
 4. Edit `plugins/AMCTimber/config.yml` and `messages.yml`, then `/amctimber reload`.
 
 Release assets are accompanied by checksums, SPDX/CycloneDX SBOMs, Sigstore bundles, GitHub artifact
-attestations and a jar safety report. See [release verification](docs/VERIFY_RELEASE.md).
+attestations and a heuristic jar-hygiene report. See [release verification](docs/VERIFY_RELEASE.md).
 
 For marketplace moderators and server administrators, see [reviewer notes](docs/REVIEWER_NOTES.md).
 
@@ -89,14 +88,14 @@ For marketplace moderators and server administrators, see [reviewer notes](docs/
 
 ## ⌨️ Commands
 
-`/amctimber` (aliases: `/timber`, `/amct`) — requires `amctimber.admin`.
+`/amctimber` (aliases: `/timber`, `/amct`) — administrative subcommands require `amctimber.admin`.
 
 | Subcommand | Description |
 |---|---|
 | `/amctimber reload` | Reload `config.yml` + `messages.yml` |
 | `/amctimber info` | Live status (active fells, trunks, platform, key settings) |
 | `/amctimber selftest` | Run the built-in logic self-check (prints `PASS n/n`) |
-| `/amctimber test …` | Deterministic QA hooks (`fell`, `break`, `attack`, `use`, `chop`) |
+| `/amctimber test …` | Deterministic QA hooks; disabled by default and separately gated by `amctimber.qa` |
 
 ## 🔑 Permissions
 
@@ -104,6 +103,7 @@ For marketplace moderators and server administrators, see [reviewer notes](docs/
 |---|---|---|
 | `amctimber.use` | everyone | Trees topple for this player (revoke for vanilla breaking) |
 | `amctimber.admin` | op | Manage / diagnose the plugin |
+| `amctimber.qa` | op | Use QA hooks, when `qa.commands-enabled` is explicitly enabled |
 
 ---
 
@@ -146,22 +146,48 @@ xp:
   #   mcMMO:      "mcmmo addxp %player% Woodcutting %amount%"   (skill: Woodcutting)
 ```
 
+**Protection and QA defaults:**
+
+```yaml
+detection:
+  protection-error-policy: deny   # deny | allow
+
+qa:
+  commands-enabled: false
+```
+
 **Durability cost, crush damage, animation timing, detection thresholds, debug verbosity** (`off/info/full`)
 and **per-locale messages** (`messages.yml`, MiniMessage) are all configurable too.
 
-### Operational Notes
+### Runtime Safety Model
+
+- A fell moves through explicit prepared, falling, landing, landed, completion, expiry, or failure states.
+- Tree blocks are checked against the scan snapshot before mutation. Partial removal uses a compensating
+  rollback journal that restores only still-empty positions, so newer world changes are not overwritten.
+- Each accepted fell keeps the immutable config snapshot it started with; reloads affect new work only.
+- Active-cut identity includes the world UUID and block coordinates, avoiding cross-world key collisions.
+- One global entity budget reserves the planned peak for active falls and landed trunks before mutation.
+- WorldGuard/Towny hook errors deny the operation by default. Operators may explicitly choose `allow`.
+- Rejected log-item delivery keeps a completed trunk available for another chop, or moves abnormal
+  in-flight recovery into a bounded five-second retry queue without acknowledging rejected stacks.
+- A completed trunk awaiting delivery does not time out; if its entities become invalid, its ledger moves
+  into the same bounded queue. The reservation remains held, so persistent rejection stops new fells at
+  the configured global cap instead of growing recovery state without limit. The validated journal also
+  has a 4096-entry hard ceiling, with headroom reserved before a new fell starts.
+- Pending queue entries are atomically stored in
+  `plugins/AMCTimber/pending-yields.properties` (`amctimber.pending-yield.v1`). Planned shutdown moves
+  remaining in-flight/trunk yield into that file before cleanup; startup validates and resumes it.
+- This local journal does not make the world-item spawn plus file acknowledgement one atomic transaction,
+  and an in-world trunk that disappears in a process/host crash may still be lost. It is recovery evidence,
+  not an exactly-once durability guarantee.
+- Unexpected entity invalidation (including an unloaded non-persistent trunk) expires the trunk without
+  granting unchopped yield. This avoids a chunk-unload yield bypass; it is not cross-chunk persistence.
+- The player-build detector is intentionally conservative but heuristic; protection plugins remain the
+  appropriate boundary for valuable builds.
 
 Only the player's initial cut is a normal `BlockBreakEvent`. The rest of a detected tree is removed by
 AMCTimber after the all-or-nothing protection check, so rollback/logging plugins may not record every
 toppled log or leaf as an individual player block break.
-
----
-
-## 🧵 Folia
-
-AMCTimber is Folia-native (`folia-supported: true`). It uses Paper's region/global/entity scheduler API
-directly — no external scheduler library — so the same jar runs correctly on Paper and Folia. On Folia,
-felling work runs on the region thread that owns the tree.
 
 ---
 
@@ -191,26 +217,33 @@ Automated layers:
 - **P0 tagged tests** — selected highest-risk server-free tests run again in the `verify` phase and are
   mapped in [docs/P0_TEST_MATRIX.md](docs/P0_TEST_MATRIX.md).
 - **Coverage and mutation gates** — JaCoCo reports full project coverage and enforces >=80% line /
-  >=70% branch coverage for the current pure-core gate (`TimberConfig`, `Tools`). PIT mutation testing
-  runs for that same pure-core target with a >=70% mutation threshold.
+  >=70% branch coverage for the scoped stable core (`TimberConfig`, `Tools`, `FellLifecycle`,
+  `EntityBudget`, `YieldLedger`). PIT mutation testing targets `TimberConfig` and `Tools` with a >=70%
+  mutation threshold. These scoped gates are not presented as 80% whole-project coverage.
 - **Runtime self-check** — `/amctimber selftest` on a live server additionally exercises the
-  registry-backed paths (Tag-based log/leaf/axe detection) that require a running server.
+  registry-backed paths (Tag-based log/leaf/axe detection) that require a running server. The committed
+  `Paper Runtime Smoke` workflow runs startup, selftest, and clean shutdown on Paper 1.20.6 and the latest
+  stable 1.21 release; it is not Purpur/Pufferfish or gameplay-path evidence.
 
 ### Supply-chain checks
 
 CI and release automation provide evidence for:
 - Maven verify and jar artifact upload.
-- Release dry-run validation for version consistency, jar safety, checksums and SBOMs before publishing.
+- Release dry-run validation for version consistency, heuristic jar hygiene, checksums and SBOMs before
+  publishing.
 - CodeQL, Dependency Review, Dependabot, OSV Scanner, Semgrep and OpenSSF Scorecard.
 - SPDX and CycloneDX SBOM generation.
 - Release checksums, Sigstore/cosign keyless signatures and GitHub artifact attestations.
-- Jar safety checks for native binaries, scripts, nested jars and shaded signature metadata.
+- Exact release-jar startup/selftest/shutdown smoke on Paper 1.20.6 and latest stable 1.21, with the jar
+  SHA256 recorded in retained workflow evidence before signing and upload.
+- Heuristic jar-hygiene checks for native binaries, scripts, nested jars and shaded signature metadata.
 - Reviewer evidence artifacts containing the release jar, SHA256 checksums, SBOMs, jar safety report,
   Maven test report, dependency report and runtime-surface report.
 - QA report artifacts containing JaCoCo coverage, PIT mutation reports, Surefire reports, P0-only test
   reports and the P0 test matrix.
 
-These controls support verification; they are not a certification or external audit.
+These controls support verification; they are not a certification, external audit, or guarantee that an
+artifact is safe.
 
 ---
 

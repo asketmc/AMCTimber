@@ -57,8 +57,6 @@ final class TreeShape {
     }
 
     int logCount() { return logs.size(); }
-    int displayCount() { return logs.size() + leaves.size(); }
-
     /** Biological tree size used for tool-tier gating: toppling logs plus the kept stump block. */
     int effectiveLogCount() { return logs.size() + (stump ? 1 : 0); }
 }
