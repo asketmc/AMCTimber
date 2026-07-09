@@ -43,7 +43,7 @@ final class Protection {
     }
 
     /** True if the player may break a block of {@code material} at loc (WorldGuard BUILD + Towny DESTROY). */
-    private boolean canBreak(Player player, Location loc, Material material) {
+    boolean canBreak(Player player, Location loc, Material material) {
         if (!respectBuilds) return true;
         return wg.canBuild(player, loc) && towny.canDestroy(player, loc, material);
     }

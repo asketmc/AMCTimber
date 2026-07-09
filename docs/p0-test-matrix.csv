@@ -1,12 +1,12 @@
 P0 id,Risk,Test class/method,CI gate,Status
 P0-001,grief / false-positive felling,TreeScannerLogicTest.naturalNeighborGuardRejectsPlayerBuildMaterials,unit + P0 tagged tests,partial
 P0-002,false-positive forest spread,TreeScannerLogicTest.speciesOf_materialDelegates_andFencesDifferentWoods; TreeScannerLogicTest.leafMatches_sameSpeciesAndAzaleaCountsAsOakOnly,unit + P0 tagged tests,implemented
-P0-003,protected region damage,planned Protection fake-bridge harness,planned,planned
-P0-004,stuck activeCuts / DoS,planned FellJobManager failure-path harness,planned,partial
+P0-003,protected region damage,Protection.canFell gate plus protected landing crush skip; planned fake-bridge harness,planned,partial
+P0-004,stuck activeCuts / DoS,try/finally launch and landing cleanup plus shutdown emergency-drop; planned failure-path harness,planned,partial
 P0-005,config DoS,TimberConfigTest.expensiveSettingsHaveUpperBounds; TimberConfigTest.lowerBoundsProtectTinyOrNegativeExpensiveSettings,unit + P0 tagged tests + JaCoCo + PIT,implemented
 P0-006,native/script/nested jar payload,scripts/check-release-jar.sh,CI + Release Dry Run + Reviewer Evidence,implemented
 P0-007,release version mismatch,scripts/verify-release-version.sh,Release Dry Run + Release Security,implemented
 P0-008,process exec/native load/classloader/network behavior,scripts/check-runtime-surface.sh; .semgrep.yml,Reviewer Evidence + Semgrep,implemented
 P0-009,XP bridge runs when disabled,XpBridgeTest.grantDoesNotTouchPlayerOrSchedulerWhenDisabled; TimberConfigTest.xpBridgeCanBeDisabledInConfig,unit + P0 tagged tests,implemented
-P0-010,unsafe Folia scheduling,planned Paper/Purpur/Folia runtime smoke,planned runtime smoke,partial
+P0-010,unsafe Folia scheduling,Sched wrapper plus region/entity scheduled admin QA hooks; planned Paper/Purpur/Folia runtime smoke,planned runtime smoke,partial
 

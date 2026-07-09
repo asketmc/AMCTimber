@@ -1,6 +1,7 @@
 package com.asketmc.timber;
 
 import org.bukkit.util.Transformation;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.joml.Quaternionf;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -63,9 +64,24 @@ class ToppleAnimatorMathTest {
         assertSame(exact, ToppleAnimator.decimate(exact, 10));                // at/under budget -> same list
     }
 
+    @Test
+    void canRenderLogs_rejectsTreesWhoseLogsAloneExceedTheDisplayCap() {
+        YamlConfiguration yml = new YamlConfiguration();
+        yml.set("animation.max-display-entities", 16);
+        TimberConfig cfg = new TimberConfig(yml);
+
+        assertTrue(ToppleAnimator.canRenderLogs(cfg, shapeWithLogs(16)));
+        assertTrue(!ToppleAnimator.canRenderLogs(cfg, shapeWithLogs(17)));
+    }
+
     private static List<TreeShape.Node> nodes(int n) {
         List<TreeShape.Node> list = new ArrayList<>();
         for (int i = 0; i < n; i++) list.add(new TreeShape.Node(i, 0, 0, null, true));
         return list;
+    }
+
+    private static TreeShape shapeWithLogs(int logs) {
+        return new TreeShape(null, nodes(logs), List.of(), 0, 0, 0, null,
+                0, 0, 0, 1, 0, logs, true, true, null);
     }
 }

@@ -3,11 +3,13 @@ package com.asketmc.timber;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.entity.ArmorStand;
+import org.bukkit.entity.AbstractVillager;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Tameable;
 import org.bukkit.inventory.ItemStack;
 import org.joml.Quaternionf;
 
@@ -34,6 +36,7 @@ final class FellJob {
     private final FellJobManager mgr;
     private final TreeShape shape;
     private final ToppleAnimator.Rig rig;
+    private final Player ownerPlayer;
     private final UUID owner;
     private final long cutKey;
     private final float[] axis;
@@ -42,11 +45,12 @@ final class FellJob {
     private final float sizeT;
 
     FellJob(TimberPlugin plugin, FellJobManager mgr, TreeShape shape, ToppleAnimator.Rig rig,
-            UUID owner, long cutKey, double yDrop, List<ItemStack> leafLoot) {
+            Player ownerPlayer, UUID owner, long cutKey, double yDrop, List<ItemStack> leafLoot) {
         this.plugin = plugin;
         this.mgr = mgr;
         this.shape = shape;
         this.rig = rig;
+        this.ownerPlayer = ownerPlayer;
         this.owner = owner;
         this.cutKey = cutKey;
         this.axis = ToppleAnimator.axis(shape.dirX, shape.dirZ);
@@ -168,8 +172,10 @@ final class FellJob {
         for (double d = 0.5; d <= span; d += 1.0) {
             Location at = new Location(shape.world,
                     rig.pivotX + shape.dirX * d, groundY + 1.0, rig.pivotZ + shape.dirZ * d);
+            if (!crushAllowedAt(at)) continue;
             for (Entity e : shape.world.getNearbyEntities(at, r, r + 0.6, r)) {
                 if (!(e instanceof LivingEntity le) || !hit.add(e.getUniqueId())) continue;
+                if (!crushAllowedAt(le.getLocation())) continue;
                 if (le instanceof Player pl) {
                     if (!cfg.crushHitPlayers) continue;
                     if (pl.getGameMode() == GameMode.CREATIVE || pl.getGameMode() == GameMode.SPECTATOR) continue;
@@ -177,12 +183,24 @@ final class FellJob {
                     if (!feller && !cfg.crushPvp) continue;   // only the woodcutter, unless pvp is enabled
                 } else if (le instanceof ArmorStand) {
                     continue;                                  // don't smash decorative armour stands
+                } else if (protectedMob(le)) {
+                    continue;                                  // never grief pets, leashed mobs or villagers
                 } else if (!cfg.crushHitMobs) {
                     continue;
                 }
                 le.damage(dmg);
             }
         }
+    }
+
+    private boolean crushAllowedAt(Location loc) {
+        return ownerPlayer == null || plugin.protection().canBreak(ownerPlayer, loc, shape.baseMaterial);
+    }
+
+    private static boolean protectedMob(LivingEntity le) {
+        if (le instanceof AbstractVillager) return true;
+        if (le instanceof Tameable tameable && tameable.isTamed()) return true;
+        return le.isLeashed();
     }
 
     private void land() {
@@ -261,7 +279,19 @@ final class FellJob {
                 + " yield=" + yield + " hits=" + hits + " hitboxes=" + hitboxes.size()
                 + " leafLoot=" + leafLoot.size());
         } finally {
-            mgr.release(cutKey);
+            mgr.finish(this, cutKey);
+        }
+    }
+
+    void emergencyDrop() {
+        for (ToppleAnimator.Seg s : rig.leaves) if (s.display != null && s.display.isValid()) s.display.remove();
+        for (ToppleAnimator.Seg s : rig.logs) if (s.display != null && s.display.isValid()) s.display.remove();
+        int remaining = plugin.cfg().logsYielded(shape.logCount());
+        Location drop = new Location(shape.world, rig.pivotX, rig.pivotY - yDrop + 0.5, rig.pivotZ);
+        while (remaining > 0) {
+            int stack = Math.min(64, remaining);
+            shape.world.dropItemNaturally(drop, new ItemStack(shape.baseMaterial, stack));
+            remaining -= stack;
         }
     }
 }

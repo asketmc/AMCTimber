@@ -111,6 +111,10 @@ final class ToppleAnimator {
         return rig;
     }
 
+    static boolean canRenderLogs(TimberConfig cfg, TreeShape shape) {
+        return shape.logs.size() <= cfg.maxDisplayEntities;
+    }
+
     private static BlockDisplay spawnOne(TimberConfig cfg, World world, Location at,
                                          TreeShape.Node n, Transformation start) {
         return world.spawn(at, BlockDisplay.class, d -> {

@@ -37,14 +37,15 @@ runtime libraries.
   stump. The fallen trunk must be chopped again for its logs (reduced yield — you have to finish the job).
 - **Tool-tier scaling** — a wooden axe only fells saplings; you need a **diamond/netherite axe to bring
   down a 2×2 jungle giant**. Fully configurable per tier.
-- **Crush damage** — stand where a giant lands and it flattens you (size-scaled, capped, PvP-safe by default).
+- **Crush damage** — stand where a giant lands and it flattens you (size-scaled, capped, PvP-safe by default;
+  protected landing points, tamed/leashed mobs, and villagers are skipped).
 - **Your builds are safe** — a "tree" touching *any* player-placed block (planks, fences, glass, beds,
   stairs, …) is treated as a structure and **never auto-fells**, so you'll never accidentally topple your
   house or treehouse. Sneak-to-bypass for builders, plus optional **WorldGuard region** & **Towny claim**
   respect on top.
 - **Species-aware** — felling never spreads across wood types; one oak won't drag a neighbouring birch down.
-- **Skill-XP bridge** — award XP to *any* skill plugin via a configurable command (AuraSkills, mcMMO, a
-  native engine, …) with **zero dependency**.
+- **Skill-XP bridge** — optionally award XP to *any* skill plugin via an explicitly enabled configurable
+  command (AuraSkills, mcMMO, a native engine, …) with **zero dependency**.
 - **Atmosphere** — layered creak / fall / impact sounds, dust lines, drifting tinted leaves, canopy crash.
 - **i18n** — English + Russian out of the box, MiniMessage-formatted, fully editable; item names localise
   on each client automatically.
@@ -136,6 +137,7 @@ axes:
 
 ```yaml
 xp:
+  enabled: true
   mode: command
   per-log: 2
   skill: foraging
@@ -146,6 +148,12 @@ xp:
 
 **Durability cost, crush damage, animation timing, detection thresholds, debug verbosity** (`off/info/full`)
 and **per-locale messages** (`messages.yml`, MiniMessage) are all configurable too.
+
+### Operational Notes
+
+Only the player's initial cut is a normal `BlockBreakEvent`. The rest of a detected tree is removed by
+AMCTimber after the all-or-nothing protection check, so rollback/logging plugins may not record every
+toppled log or leaf as an individual player block break.
 
 ---
 

@@ -11,7 +11,11 @@ marketplace moderators and server administrators who want a concise review check
 - Removes or replaces only detected tree/trunk blocks.
 - Stores temporary downed-trunk state in memory only.
 - Respects optional WorldGuard and Towny checks when those plugins are installed.
-- Provides a server-operator configured XP command bridge; the command template is trusted admin config.
+- Provides a disabled-by-default, server-operator configured XP command bridge; the command template is
+  trusted admin config.
+- Only the player's initial cut is a normal `BlockBreakEvent`; the remaining detected tree blocks are
+  removed by AMCTimber after protection checks, so rollback plugins may not log every toppled block as a
+  separate player break.
 
 ## No Hidden Payloads
 

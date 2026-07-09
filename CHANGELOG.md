@@ -16,6 +16,20 @@ Keep a Changelog format.
 - Added JaCoCo coverage, P0 tagged tests, a P0 test matrix and PIT mutation testing for the current
   pure-core QA gate.
 
+### Changed
+
+- Disabled the XP command bridge by default; operators must explicitly enable it after choosing a real
+  skill-plugin command.
+
+### Fixed
+
+- Enforced `animation.max-display-entities` for logs as well as leaves.
+- Skipped crush damage at protected landing points and against tamed/leashed mobs and villagers.
+- Routed admin QA test hooks through region/entity schedulers for Folia safety.
+- Added shutdown cleanup for in-flight falls so mid-animation disables drop the expected log yield instead
+  of silently losing the tree.
+- Increased giant-trunk hitbox coverage and fixed non-stump durability charging.
+
 ## [1.0.4] - 2026-07-09
 
 ### Changed
