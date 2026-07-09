@@ -27,12 +27,21 @@ jobs:
       - name: Build jar for SBOM context
         run: mvn -B -ntp -DskipTests package
       - name: SPDX SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
-        with:
-          path: target
-          format: spdx-json
-          output-file: sbom.spdx.json
-          upload-artifact: false
+        env:
+          SYFT_VERSION: "1.42.3"
+        run: |
+          set -euo pipefail
+          archive="syft_${SYFT_VERSION}_linux_amd64.tar.gz"
+          curl --proto '=https' --tlsv1.2 --fail --location --show-error --silent \
+            --retry 5 --retry-all-errors --retry-delay 5 \
+            -o "$archive" "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/${archive}"
+          curl --proto '=https' --tlsv1.2 --fail --location --show-error --silent \
+            --retry 5 --retry-all-errors --retry-delay 5 \
+            -o syft_checksums.txt "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_checksums.txt"
+          grep " ${archive}$" syft_checksums.txt > syft.sha256
+          sha256sum -c syft.sha256
+          tar -xzf "$archive" syft
+          ./syft target -o spdx-json=sbom.spdx.json
       - name: CycloneDX SBOM
         run: |
           set -euo pipefail
