@@ -18,6 +18,9 @@ server plugin portfolio project.
 | Sigstore/cosign | Keyless `cosign sign-blob` bundles for release assets | implemented |
 | Artifact attestations | GitHub artifact attestations for release assets | implemented |
 | Jar safety | Scripted check blocks native binaries, scripts, nested jars, and shaded signature metadata | implemented |
+| Runtime surface review | Scripted check reports/fails process execution, native loading, dynamic classloading, hidden reflection and runtime network API references | implemented |
+| Reviewer evidence | GitHub Actions artifact with release jar, checksums, SBOMs, jar safety, Maven test, dependency and runtime-surface reports | implemented |
+| Security policy | `SECURITY.md` documents reporting, sensitive data handling and conservative trust claims | implemented |
 
 These controls provide verification evidence. They do not mean the plugin has been externally audited or
 certified secure.

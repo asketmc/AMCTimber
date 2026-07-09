@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: GPL-3.0-only
+
+name: Reviewer Evidence
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reviewer-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Set up JDK 21
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Build reviewer evidence
+        run: bash scripts/prepare-reviewer-evidence.sh reviewer-evidence
+      - name: Create reviewer evidence zip
+        run: jar --create --no-manifest --file reviewer-evidence.zip -C reviewer-evidence .
+      - name: Upload reviewer evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: reviewer-evidence
+          path: reviewer-evidence.zip
+          if-no-files-found: error

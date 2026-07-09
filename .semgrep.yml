@@ -22,3 +22,21 @@ rules:
     severity: ERROR
     languages: [java]
     pattern: new URLClassLoader(...)
+
+  - id: amctimber-no-reflection-escape
+    message: AMCTimber should not use hidden reflection escape hatches.
+    severity: ERROR
+    languages: [java]
+    pattern-either:
+      - pattern: $X.setAccessible(true)
+      - pattern: $C.defineClass(...)
+
+  - id: amctimber-no-runtime-network
+    message: AMCTimber should not open network connections from runtime code.
+    severity: ERROR
+    languages: [java]
+    pattern-either:
+      - pattern: new Socket(...)
+      - pattern: $X.openConnection(...)
+      - pattern: $X.openStream(...)
+      - pattern: HttpClient.newHttpClient(...)

@@ -3,6 +3,17 @@
 All notable changes to AMCTimber are documented here. This project follows Semantic Versioning and the
 Keep a Changelog format.
 
+## [Unreleased]
+
+### Added
+
+- Added `SECURITY.md` and moderator-focused `docs/REVIEWER_NOTES.md`.
+- Added a `Reviewer Evidence` workflow that publishes a reviewer evidence bundle with the release jar,
+  SHA256 checksums, SBOMs, jar safety report, Maven test report, dependency report and runtime-surface
+  report.
+- Added a runtime-surface gate for process execution, native loading, dynamic classloading, hidden
+  reflection and runtime network API references.
+
 ## [1.0.4] - 2026-07-09
 
 ### Changed

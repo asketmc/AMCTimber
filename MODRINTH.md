@@ -10,7 +10,8 @@ leaves a stump, just like Valheim. The downed trunk lies on the ground and must 
 its logs, so clearing a forest *feels* like real work. Giants come crashing down and **crush** whatever
 stands where they land.
 
-**No client mod. No resource pack. No required dependencies. One small jar.**
+**No client mod. No resource pack. No required external runtime plugins. One small jar with no shaded
+runtime libraries.**
 
 **Inspired by survival games where trees actually fall — and can flatten you.** AMCTimber is a custom,
 feature-rich mechanic from **[asketmc](https://asketmc.com)** — a Survival RPG (CIS & EU) where falling
@@ -34,7 +35,20 @@ Not for Spigot. WorldGuard & Towny are optional (fail-open).
 
 ## Links
 - 📖 Source & issues: https://github.com/asketmc/AMCTimber
+- 🔍 Release verification / reviewer notes: https://github.com/asketmc/AMCTimber/blob/main/docs/REVIEWER_NOTES.md
 - 🎮 Built for **[asketmc.com](https://asketmc.com)** — survival, CIS & EU. Come play! *(Discord: `discord.gg/your-invite`)*
+
+## Security / Review Notes
+
+This plugin is public-source and not obfuscated. Release jars are built by GitHub Actions from tagged
+source. Each release includes SHA256 checksums, SPDX/CycloneDX SBOMs, Sigstore bundles, GitHub artifact
+attestations, and a jar safety report.
+
+The jar safety gate fails the release if native binaries, scripts, nested jars, or shaded signature
+metadata are present. The plugin does not use native code, runtime downloads, auto-updaters, telemetry, or
+hidden external services. Optional integrations are WorldGuard and Towny.
+
+These checks are verification evidence, not a formal third-party security audit.
 
 ## License
 GPLv3 — free to use and modify; derivatives stay open-source; no closed-source resale.
