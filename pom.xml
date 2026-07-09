@@ -6,7 +6,7 @@
 
   <groupId>com.asketmc</groupId>
   <artifactId>amctimber</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
   <packaging>jar</packaging>
   <name>AMCTimber</name>
   <description>Valheim-style tree felling: chop a tree's base and the whole tree topples, then re-chop the felled trunk for logs.</description>

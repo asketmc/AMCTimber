@@ -1,5 +1,15 @@
 # 🌲 AMCTimber
 
+[![CI](https://github.com/asketmc/AMCTimber/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/asketmc/AMCTimber/actions/workflows/build.yml)
+[![CodeQL](https://github.com/asketmc/AMCTimber/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/asketmc/AMCTimber/actions/workflows/codeql.yml)
+[![Dependency Review](https://github.com/asketmc/AMCTimber/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/asketmc/AMCTimber/actions/workflows/dependency-review.yml)
+[![OSV Scanner](https://github.com/asketmc/AMCTimber/actions/workflows/osv-scanner.yml/badge.svg?branch=main)](https://github.com/asketmc/AMCTimber/actions/workflows/osv-scanner.yml)
+[![Semgrep](https://github.com/asketmc/AMCTimber/actions/workflows/semgrep.yml/badge.svg?branch=main)](https://github.com/asketmc/AMCTimber/actions/workflows/semgrep.yml)
+[![OpenSSF Scorecard](https://github.com/asketmc/AMCTimber/actions/workflows/scorecard.yml/badge.svg?branch=main)](https://github.com/asketmc/AMCTimber/actions/workflows/scorecard.yml)
+[![SBOM](https://github.com/asketmc/AMCTimber/actions/workflows/sbom.yml/badge.svg?branch=main)](https://github.com/asketmc/AMCTimber/actions/workflows/sbom.yml)
+[![Release Security](https://github.com/asketmc/AMCTimber/actions/workflows/release.yml/badge.svg)](https://github.com/asketmc/AMCTimber/actions/workflows/release.yml)
+[![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+
 **Valheim-style tree felling for Paper, Purpur, Pufferfish & Folia (MC 1.20.6 → 1.21.x).**
 
 Chop the base of a tree and the whole thing **topples over** — a smooth, client-interpolated fall that
@@ -66,6 +76,9 @@ No client mod. No resource pack. No required dependencies. One small, dependency
 2. Drop it into your server's `plugins/` folder.
 3. Restart the server.
 4. Edit `plugins/AMCTimber/config.yml` and `messages.yml`, then `/amctimber reload`.
+
+Release assets are accompanied by checksums, SPDX/CycloneDX SBOMs, Sigstore bundles, GitHub artifact
+attestations and a jar safety report. See [release verification](docs/VERIFY_RELEASE.md).
 
 ---
 
@@ -145,7 +158,7 @@ felling work runs on the region thread that owns the tree.
 ```bash
 git clone https://github.com/asketmc/AMCTimber.git
 cd AMCTimber
-mvn -B clean package
+mvn -B -ntp clean verify
 # -> target/AMCTimber-<version>.jar
 ```
 
@@ -161,9 +174,20 @@ mvn test
 Two layers:
 - **Unit tests** (`src/test/java`, JUnit 5) — server-free checks over the pure logic: yield/XP/hits/
   durability/crush maths, axe-tier gating, species & leaf matching, fall direction, topple transforms,
-  trunk shrink and the progress bar. Fast, and run on every push by CI (`mvn package` runs them).
+  trunk shrink and the progress bar. Fast, and run on every push by CI (`mvn verify` runs them).
 - **Runtime self-check** — `/amctimber selftest` on a live server additionally exercises the
   registry-backed paths (Tag-based log/leaf/axe detection) that require a running server.
+
+### Supply-chain checks
+
+CI and release automation provide evidence for:
+- Maven verify and jar artifact upload.
+- CodeQL, Dependency Review, Dependabot, OSV Scanner, Semgrep and OpenSSF Scorecard.
+- SPDX and CycloneDX SBOM generation.
+- Release checksums, Sigstore/cosign keyless signatures and GitHub artifact attestations.
+- Jar safety checks for native binaries, scripts, nested jars and shaded signature metadata.
+
+These controls support verification; they are not a certification or external audit.
 
 ---
 
