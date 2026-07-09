@@ -1,29 +1,44 @@
 # Changelog
 
-All notable changes to **AMCTimber**. This project adheres to [Semantic Versioning](https://semver.org)
-and the [Keep a Changelog](https://keepachangelog.com) format.
+All notable changes to AMCTimber are documented here. This project follows Semantic Versioning and the
+Keep a Changelog format.
 
-## [1.0.0] — 2026-06-19
+## [1.0.1] - 2026-07-09
 
-First public release — extracted and generalised from the internal asketmc build.
+### Changed
+
+- Added pinned GitHub Actions workflows for CI, CodeQL, Dependency Review, OSV Scanner, Semgrep,
+  OpenSSF Scorecard, SBOM generation, and release security evidence.
+- Moved release jar distribution out of the git source tree and into GitHub Release assets.
+
+### Security
+
+- Added release checksums, SPDX/CycloneDX SBOM generation, Sigstore/cosign keyless signing, and GitHub
+  artifact attestations.
+- Added a jar safety gate that fails CI/release if the plugin jar contains native binaries, scripts,
+  nested jars, or shaded dependency signature metadata.
+
+## [1.0.0] - 2026-06-19
+
+First public release, extracted and generalised from the internal asketmc build.
 
 ### Added
-- **Valheim-style tree felling**: cut a tree's base and the section above topples in a smooth,
-  client-interpolated fall, leaving a stump; the downed trunk must be re-chopped for its logs.
-- **Tool-tier scaling** — each axe tier (wooden → netherite) caps the tree size it can fell; configurable.
-- **Configurable axe items** — `axes.use-vanilla-tag` + `axes.extra-items` decide what counts as an axe.
-- **Pluggable skill-XP bridge** — award XP to any skill plugin via a configurable console command
-  (`%player%`/`%skill%`/`%amount%`), no dependency. Examples for AuraSkills & mcMMO included.
-- **Configurable durability** cost per fell and per chop.
-- **Crush damage** — a landing tree flattens whatever stands in its path (size-scaled, capped, PvP-safe).
-- **Treehouse / log-cabin guard** and species-aware spreading (no cross-wood-type felling).
-- **Debug levels** — `off` / `info` / `full`.
-- **Externalised messages** — `messages.yml` in EN + RU, MiniMessage-formatted, per-client locale.
-- **Folia support** — uses Paper's region/global/entity scheduler API directly (no external lib).
-- **Wide compatibility** — one jar for Paper/Purpur/Pufferfish/Folia, MC **1.20.6 → 1.21.x**
-  (version-specific particles/sounds resolved at runtime).
-- **bStats metrics** (opt-in; set the plugin id to enable).
-- **Self-check** — `/amctimber selftest` (74 assertions over the pure logic).
-- **Unit test suite** — JUnit 5 (`src/test/java`), 29 server-free tests run by CI via `mvn test`.
 
-[1.0.0]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.0
+- Valheim-style tree felling: cut a tree's base and the section above topples in a smooth,
+  client-interpolated fall, leaving a stump; the downed trunk must be re-chopped for its logs.
+- Tool-tier scaling: each axe tier caps the tree size it can fell; configurable.
+- Configurable axe items with `axes.use-vanilla-tag` and `axes.extra-items`.
+- Pluggable skill-XP bridge via configurable console command.
+- Configurable durability cost per fell and per chop.
+- Crush damage for tree landings.
+- Treehouse/log-cabin guard and species-aware spreading.
+- Debug levels: `off`, `info`, `full`.
+- Externalised EN/RU messages in `messages.yml`.
+- Folia support through Paper's region/global/entity scheduler APIs.
+- Wide compatibility for Paper, Purpur, Pufferfish, and Folia.
+- bStats metrics hook, disabled while the plugin id is `0`.
+- `/amctimber selftest`.
+- JUnit 5 server-free unit test suite.
+
+[1.0.1]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.1
+[1.0.0]: https://modrinth.com/plugin/amctimber/version/q637itJU

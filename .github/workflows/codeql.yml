@@ -1,20 +1,24 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
-name: CI
+name: CodeQL
 
 on:
   push:
     branches: ["main"]
   pull_request:
-  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
 
 permissions:
   contents: read
 
 jobs:
-  build:
-    name: Maven verify
+  analyze:
+    name: Analyze Java
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -26,15 +30,12 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
-      - name: Verify
-        run: mvn -B -ntp clean verify
-      - name: Check release jar safety
-        run: bash scripts/check-release-jar.sh target/AMCTimber-*.jar target/jar-safety-report.txt
-      - name: Upload jar
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@1ad29ea4a422cce9a242a9fae469541dcd08addc # v4
         with:
-          name: AMCTimber-jar
-          path: |
-            target/AMCTimber-*.jar
-            target/jar-safety-report.txt
-          if-no-files-found: error
+          languages: java-kotlin
+          queries: security-and-quality
+      - name: Build
+        run: mvn -B -ntp -DskipTests package
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@1ad29ea4a422cce9a242a9fae469541dcd08addc # v4
