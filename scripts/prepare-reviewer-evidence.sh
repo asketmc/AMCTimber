@@ -14,6 +14,14 @@ mvn -B -ntp clean verify > "$evidence_dir/test-report.txt" 2>&1
 bash scripts/prepare-release-assets.sh "$version" "$evidence_dir"
 bash scripts/check-runtime-surface.sh "$evidence_dir/forbidden-api-report.txt"
 
+mkdir -p "$evidence_dir/qa"
+cp -R target/site/jacoco "$evidence_dir/qa/jacoco"
+cp -R target/pit-reports "$evidence_dir/qa/pit-reports"
+cp -R target/surefire-reports "$evidence_dir/qa/surefire-reports"
+cp -R target/surefire-p0-reports "$evidence_dir/qa/surefire-p0-reports"
+cp docs/P0_TEST_MATRIX.md "$evidence_dir/qa/P0_TEST_MATRIX.md"
+cp docs/p0-test-matrix.csv "$evidence_dir/qa/p0-test-matrix.csv"
+
 {
   echo "AMCTimber dependency report"
   echo "version: $version"
@@ -29,6 +37,5 @@ bash scripts/check-runtime-surface.sh "$evidence_dir/forbidden-api-report.txt"
   echo "source: https://github.com/asketmc/AMCTimber"
   echo
   echo "Included files:"
-  find "$evidence_dir" -maxdepth 1 -type f -printf '%f\n' | sort
+  find "$evidence_dir" -maxdepth 4 -type f -printf '%P\n' | sort
 } > "$evidence_dir/README.txt"
-

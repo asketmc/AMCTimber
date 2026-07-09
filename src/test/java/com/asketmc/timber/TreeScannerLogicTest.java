@@ -3,6 +3,7 @@ package com.asketmc.timber;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,6 +25,7 @@ class TreeScannerLogicTest {
     }
 
     @Test
+    @Tag("P0")
     void speciesOf_materialDelegates_andFencesDifferentWoods() {
         assertEquals("OAK", TreeScanner.speciesOf(Material.OAK_LOG));
         assertNotEquals(TreeScanner.speciesOf(Material.OAK_LOG),
@@ -31,6 +33,7 @@ class TreeScannerLogicTest {
     }
 
     @Test
+    @Tag("P0")
     void leafMatches_sameSpeciesAndAzaleaCountsAsOakOnly() {
         assertTrue(TreeScanner.leafMatchesSpeciesName("OAK", "OAK_LEAVES"));
         assertTrue(TreeScanner.leafMatchesSpeciesName("OAK", "AZALEA_LEAVES"));
@@ -38,6 +41,21 @@ class TreeScannerLogicTest {
         assertTrue(TreeScanner.leafMatchesSpeciesName("BIRCH", "BIRCH_LEAVES"));
         assertFalse(TreeScanner.leafMatchesSpeciesName("OAK", "BIRCH_LEAVES"));
         assertFalse(TreeScanner.leafMatchesSpeciesName("SPRUCE", "AZALEA_LEAVES")); // azalea is oak-only
+    }
+
+    @Test
+    @Tag("P0")
+    void naturalNeighborGuardRejectsPlayerBuildMaterials() {
+        assertTrue(TreeScanner.isKnownPlayerBuildMaterialName("OAK_PLANKS"));
+        assertTrue(TreeScanner.isKnownPlayerBuildMaterialName("GLASS"));
+        assertTrue(TreeScanner.isKnownPlayerBuildMaterialName("WHITE_BED"));
+        assertTrue(TreeScanner.isKnownPlayerBuildMaterialName("TORCH"));
+        assertTrue(TreeScanner.isKnownPlayerBuildMaterialName("OAK_FENCE_GATE"));
+        assertTrue(TreeScanner.isKnownPlayerBuildMaterialName("CRAFTING_TABLE"));
+
+        assertFalse(TreeScanner.isKnownPlayerBuildMaterialName("OAK_LOG"));
+        assertFalse(TreeScanner.isKnownPlayerBuildMaterialName("OAK_LEAVES"));
+        assertFalse(TreeScanner.isKnownPlayerBuildMaterialName("DIRT"));
     }
 
     @Test

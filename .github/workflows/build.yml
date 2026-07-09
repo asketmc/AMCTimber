@@ -38,3 +38,15 @@ jobs:
             target/AMCTimber-*.jar
             target/jar-safety-report.txt
           if-no-files-found: error
+      - name: Upload QA reports
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: qa-reports
+          path: |
+            target/site/jacoco/
+            target/pit-reports/
+            target/surefire-reports/
+            target/surefire-p0-reports/
+            docs/P0_TEST_MATRIX.md
+            docs/p0-test-matrix.csv
+          if-no-files-found: error

@@ -173,13 +173,18 @@ into the release jar.
 ### Tests
 
 ```bash
-mvn test
+mvn -B -ntp clean verify
 ```
 
-Two layers:
+Automated layers:
 - **Unit tests** (`src/test/java`, JUnit 5) — server-free checks over the pure logic: yield/XP/hits/
   durability/crush maths, axe-tier gating, species & leaf matching, fall direction, topple transforms,
   trunk shrink and the progress bar. Fast, and run on every push by CI (`mvn verify` runs them).
+- **P0 tagged tests** — selected highest-risk server-free tests run again in the `verify` phase and are
+  mapped in [docs/P0_TEST_MATRIX.md](docs/P0_TEST_MATRIX.md).
+- **Coverage and mutation gates** — JaCoCo reports full project coverage and enforces >=80% line /
+  >=70% branch coverage for the current pure-core gate (`TimberConfig`, `Tools`). PIT mutation testing
+  runs for that same pure-core target with a >=70% mutation threshold.
 - **Runtime self-check** — `/amctimber selftest` on a live server additionally exercises the
   registry-backed paths (Tag-based log/leaf/axe detection) that require a running server.
 
@@ -194,6 +199,8 @@ CI and release automation provide evidence for:
 - Jar safety checks for native binaries, scripts, nested jars and shaded signature metadata.
 - Reviewer evidence artifacts containing the release jar, SHA256 checksums, SBOMs, jar safety report,
   Maven test report, dependency report and runtime-surface report.
+- QA report artifacts containing JaCoCo coverage, PIT mutation reports, Surefire reports, P0-only test
+  reports and the P0 test matrix.
 
 These controls support verification; they are not a certification or external audit.
 

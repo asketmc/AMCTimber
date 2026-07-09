@@ -102,7 +102,8 @@ final class TreeScanner {
      * SelfTest}) — the dangerous "is this a real tree or a player's log cabin?" call, kept testable.
      */
     static boolean isNaturalNeighbor(Material m) {
-        if (m.isAir()) return true;
+        if (m == Material.AIR || m == Material.CAVE_AIR || m == Material.VOID_AIR) return true;
+        if (isKnownPlayerBuildMaterialName(m.name())) return false;
         return Tag.LOGS.isTagged(m) || Tag.LEAVES.isTagged(m) || Tag.SAPLINGS.isTagged(m)
                 || Tag.DIRT.isTagged(m) || Tag.SAND.isTagged(m)
                 || Tag.BASE_STONE_OVERWORLD.isTagged(m) || Tag.BASE_STONE_NETHER.isTagged(m)
@@ -110,6 +111,26 @@ final class TreeScanner {
                 || Tag.SNOW.isTagged(m) || Tag.ICE.isTagged(m)
                 || Tag.SMALL_FLOWERS.isTagged(m)
                 || EXTRA_NATURAL.contains(m);
+    }
+
+    static boolean isKnownPlayerBuildMaterialName(String name) {
+        return name.endsWith("_PLANKS")
+                || name.endsWith("_BED")
+                || name.endsWith("_DOOR")
+                || name.endsWith("_FENCE")
+                || name.endsWith("_FENCE_GATE")
+                || name.endsWith("_STAIRS")
+                || name.endsWith("_SLAB")
+                || name.endsWith("_WOOL")
+                || name.endsWith("_CARPET")
+                || name.equals("GLASS")
+                || name.endsWith("_STAINED_GLASS")
+                || name.equals("TORCH")
+                || name.endsWith("_TORCH")
+                || name.equals("CRAFTING_TABLE")
+                || name.equals("CHEST")
+                || name.endsWith("_CHEST")
+                || name.equals("FURNACE");
     }
 
     /**

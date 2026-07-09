@@ -68,6 +68,7 @@ Moderator/reviewer package:
 - `*.sigstore.json` bundle and GitHub artifact attestation.
 - Optional VirusTotal file-hash report for the exact release jar SHA256.
 - `docs/REVIEWER_NOTES.md`.
+- `qa-reports` CI artifact with JaCoCo, PIT, Surefire and P0 matrix evidence.
 - Paper/Purpur/Folia smoke-test logs for every runtime version claimed in marketplace text.
 
 VirusTotal is only a weak external reputation signal. It should be presented as "hash X had no detections

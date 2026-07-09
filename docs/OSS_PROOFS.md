@@ -21,6 +21,9 @@ server plugin portfolio project.
 | Runtime surface review | Scripted check reports/fails process execution, native loading, dynamic classloading, hidden reflection and runtime network API references | implemented |
 | Reviewer evidence | GitHub Actions artifact with release jar, checksums, SBOMs, jar safety, Maven test, dependency and runtime-surface reports | implemented |
 | Security policy | `SECURITY.md` documents reporting, sensitive data handling and conservative trust claims | implemented |
+| JaCoCo coverage gate | Maven `verify` generates JaCoCo reports and enforces >=80% line / >=70% branch coverage for the current pure-core gate | implemented |
+| PIT mutation gate | Maven `verify` runs PIT for the current pure-core mutation target and uploads mutation reports through CI artifacts | implemented |
+| P0 test matrix | `docs/P0_TEST_MATRIX.md` and `docs/p0-test-matrix.csv` map highest-risk behavior to tests/scripts and CI gates | implemented |
 
 These controls provide verification evidence. They do not mean the plugin has been externally audited or
 certified secure.

@@ -3,6 +3,7 @@ package com.asketmc.timber;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -92,6 +93,7 @@ class TimberConfigTest {
     }
 
     @Test
+    @Tag("P0")
     void expensiveSettingsHaveUpperBounds() {
         YamlConfiguration yml = new YamlConfiguration();
         yml.set("detection.max-tree-blocks", 1_000_000);
@@ -105,5 +107,76 @@ class TimberConfigTest {
         assertEquals(TimberConfig.MAX_DISPLAY_ENTITIES_CAP, capped.maxDisplayEntities);
         assertEquals(TimberConfig.MAX_CONCURRENT_FELLS_CAP, capped.maxConcurrentFells);
         assertEquals(TimberConfig.MAX_DESPAWN_SECONDS_CAP, capped.despawnSeconds);
+    }
+
+    @Test
+    void worldWhitelistIsCaseInsensitive() {
+        YamlConfiguration yml = new YamlConfiguration();
+        yml.set("worlds", java.util.List.of("world", "resource_nether"));
+
+        TimberConfig whitelist = new TimberConfig(yml);
+
+        assertTrue(whitelist.worldAllowed("WORLD"));
+        assertTrue(whitelist.worldAllowed("Resource_Nether"));
+        assertTrue(!whitelist.worldAllowed("arena"));
+    }
+
+    @Test
+    void lowerBoundsProtectTinyOrNegativeExpensiveSettings() {
+        YamlConfiguration yml = new YamlConfiguration();
+        yml.set("detection.max-tree-blocks", -1);
+        yml.set("animation.max-display-entities", -1);
+        yml.set("animation.max-concurrent-fells", -1);
+        yml.set("trunk.despawn-seconds", -1);
+
+        TimberConfig bounded = new TimberConfig(yml);
+
+        assertEquals(50, bounded.maxTreeBlocks);
+        assertEquals(16, bounded.maxDisplayEntities);
+        assertEquals(1, bounded.maxConcurrentFells);
+        assertEquals(10, bounded.despawnSeconds);
+    }
+
+    @Test
+    void customTiersOverrideDefaultsAndUnknownTiersArePreserved() {
+        YamlConfiguration yml = new YamlConfiguration();
+        yml.set("tool-scaling.tiers.WOODEN", 3);
+        yml.set("tool-scaling.tiers.CUSTOM", 44);
+
+        TimberConfig custom = new TimberConfig(yml);
+
+        assertEquals(3, custom.tierMaxLogs.get("WOODEN"));
+        assertEquals(44, custom.tierMaxLogs.get("CUSTOM"));
+        assertEquals(-1, custom.tierMaxLogs.get("NETHERITE"));
+    }
+
+    @Test
+    @Tag("P0")
+    void xpBridgeCanBeDisabledInConfig() {
+        YamlConfiguration yml = new YamlConfiguration();
+        yml.set("xp.enabled", false);
+        yml.set("xp.mode", "none");
+        yml.set("xp.command", "");
+
+        TimberConfig disabled = new TimberConfig(yml);
+
+        assertTrue(!disabled.xpEnabled);
+        assertEquals("none", disabled.xpMode);
+        assertEquals("", disabled.xpCommand);
+        assertEquals(0, disabled.xpFor(-1));
+    }
+
+    @Test
+    void invalidMaterialListsAreIgnoredAndValidExtrasAreKept() {
+        YamlConfiguration yml = new YamlConfiguration();
+        yml.set("axes.extra-items", java.util.List.of("NETHERITE_HOE", "NOT_A_REAL_MATERIAL"));
+        yml.set("detection.extra-natural", java.util.List.of("COBBLESTONE", "NOPE"));
+
+        TimberConfig parsed = new TimberConfig(yml);
+
+        assertTrue(parsed.axeExtraItems.contains(org.bukkit.Material.NETHERITE_HOE));
+        assertEquals(1, parsed.axeExtraItems.size());
+        assertTrue(parsed.extraNatural.contains(org.bukkit.Material.COBBLESTONE));
+        assertEquals(1, parsed.extraNatural.size());
     }
 }

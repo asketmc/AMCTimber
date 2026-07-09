@@ -22,6 +22,13 @@
   <properties>
     <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <jacoco.version>0.8.15</jacoco.version>
+    <pitest.version>1.25.7</pitest.version>
+    <pitest.junit5.plugin.version>1.2.3</pitest.junit5.plugin.version>
+    <coverage.line.minimum>0.80</coverage.line.minimum>
+    <coverage.branch.minimum>0.70</coverage.branch.minimum>
+    <mutation.threshold>70</mutation.threshold>
+    <mutation.coverage.threshold>80</mutation.coverage.threshold>
     <!-- Compiled against the OLDEST supported API so one jar runs 1.20.6 -> 1.21.x.
          Version-specific symbols (new particles/materials) are resolved by name at runtime. -->
     <paper.version>1.20.6-R0.1-SNAPSHOT</paper.version>
@@ -87,6 +94,107 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.5.6</version>
+        <executions>
+          <execution>
+            <id>p0-tests</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>test</goal>
+            </goals>
+            <configuration>
+              <groups>P0</groups>
+              <reportsDirectory>${project.build.directory}/surefire-p0-reports</reportsDirectory>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>${jacoco.version}</version>
+        <executions>
+          <execution>
+            <id>prepare-agent</id>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>report</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>report</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>check</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <rule>
+                  <element>BUNDLE</element>
+                  <includes>
+                    <include>com.asketmc.timber.TimberConfig</include>
+                    <include>com.asketmc.timber.Tools</include>
+                  </includes>
+                  <limits>
+                    <limit>
+                      <counter>LINE</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>${coverage.line.minimum}</minimum>
+                    </limit>
+                    <limit>
+                      <counter>BRANCH</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>${coverage.branch.minimum}</minimum>
+                    </limit>
+                  </limits>
+                </rule>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.pitest</groupId>
+        <artifactId>pitest-maven</artifactId>
+        <version>${pitest.version}</version>
+        <configuration>
+          <targetClasses>
+            <param>com.asketmc.timber.TimberConfig</param>
+            <param>com.asketmc.timber.Tools</param>
+          </targetClasses>
+          <targetTests>
+            <param>com.asketmc.timber.TimberConfigTest</param>
+            <param>com.asketmc.timber.ToolsTest</param>
+          </targetTests>
+          <mutationThreshold>${mutation.threshold}</mutationThreshold>
+          <coverageThreshold>${mutation.coverage.threshold}</coverageThreshold>
+          <outputFormats>
+            <param>HTML</param>
+            <param>XML</param>
+          </outputFormats>
+          <timestampedReports>false</timestampedReports>
+        </configuration>
+        <executions>
+          <execution>
+            <id>mutation-tests</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>mutationCoverage</goal>
+            </goals>
+          </execution>
+        </executions>
+        <dependencies>
+          <dependency>
+            <groupId>org.pitest</groupId>
+            <artifactId>pitest-junit5-plugin</artifactId>
+            <version>${pitest.junit5.plugin.version}</version>
+          </dependency>
+        </dependencies>
       </plugin>
     </plugins>
   </build>

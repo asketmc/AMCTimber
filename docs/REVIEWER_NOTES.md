@@ -41,6 +41,8 @@ Recommended moderator package:
 - Signature evidence: `*.sigstore.json`
 - Provenance evidence: GitHub artifact attestation
 - Reviewer evidence bundle: GitHub Actions artifact `reviewer-evidence`
+- QA reports: GitHub Actions artifact `qa-reports` with JaCoCo coverage, PIT mutation reports, Surefire
+  reports, P0-only test reports, and the P0 matrix
 
 VirusTotal can be included as an additional hash-based signal for the exact release jar SHA256. It should
 not be described as proof of safety.
