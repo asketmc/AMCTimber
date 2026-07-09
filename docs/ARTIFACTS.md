@@ -17,6 +17,6 @@ certification.
 | CodeQL result | `CodeQL` workflow | Push, pull request, weekly schedule | GitHub code scanning | GitHub Security tab / workflow run status | implemented |
 | Dependency Review result | `Dependency Review` workflow | Pull request | PR checks | PR status check; fails on moderate-or-higher vulnerabilities | implemented |
 | Dependabot updates | `.github/dependabot.yml` | Weekly schedule | Dependabot PRs | Review dependency PRs and CI results | implemented |
-| OSV Scanner result | `OSV Scanner` workflow | Push, pull request, weekly schedule | GitHub Actions run | Workflow status and logs | implemented |
+| OSV Scanner result | `OSV Scanner` workflow | Push, pull request, weekly schedule | GitHub Actions run | Workflow status and logs; Maven scan uses `--no-resolve` for Paper provided SNAPSHOT compatibility | implemented |
 | Semgrep result | `Semgrep` workflow | Push, pull request, weekly schedule | GitHub code scanning SARIF | GitHub Security tab / workflow run status | implemented |
 | OpenSSF Scorecard result | `Scorecard` workflow | Push to `main`, branch protection event, weekly schedule | OpenSSF/GitHub workflow results | Workflow logs and published Scorecard result | implemented |

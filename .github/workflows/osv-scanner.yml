@@ -25,4 +25,5 @@ jobs:
         with:
           scan-args: |-
             --recursive
+            --no-resolve
             .

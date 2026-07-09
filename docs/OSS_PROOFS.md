@@ -9,7 +9,7 @@ server plugin portfolio project.
 | CodeQL | Java/Kotlin CodeQL workflow with `security-and-quality` queries | implemented |
 | Dependency Review | PR-only dependency review with moderate severity failure threshold | implemented |
 | Dependabot | Weekly Maven and GitHub Actions updates | implemented |
-| OSV Scanner | Recursive OSV scan on push, PR, and schedule | implemented |
+| OSV Scanner | Recursive OSV scan on push, PR, and schedule. Maven transitive resolution is disabled because Paper API is a provided SNAPSHOT dependency; transitive evidence is covered by SBOM generation. | implemented |
 | Semgrep | Java and security-audit Semgrep scan with SARIF upload | implemented |
 | OpenSSF Scorecard | Scheduled and push-triggered Scorecard workflow with published results | implemented |
 | SBOM | SPDX and CycloneDX SBOM generation in CI and releases | implemented |
