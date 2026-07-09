@@ -3,6 +3,13 @@
 All notable changes to AMCTimber are documented here. This project follows Semantic Versioning and the
 Keep a Changelog format.
 
+## [1.0.2] - 2026-07-09
+
+### Fixed
+
+- Fixed SPDX SBOM generation to scan the built plugin jar directly instead of the release asset directory,
+  producing more useful package/file evidence for release verification.
+
 ## [1.0.1] - 2026-07-09
 
 ### Changed
@@ -40,5 +47,6 @@ First public release, extracted and generalised from the internal asketmc build.
 - `/amctimber selftest`.
 - JUnit 5 server-free unit test suite.
 
+[1.0.2]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.2
 [1.0.1]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.1
 [1.0.0]: https://modrinth.com/plugin/amctimber/version/q637itJU

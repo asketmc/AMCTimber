@@ -29,12 +29,12 @@ from the tagged source and uploads:
 Release process:
 
 ```bash
-git tag v1.0.1
-git push origin v1.0.1
-gh release create v1.0.1 \
+git tag v1.0.2
+git push origin v1.0.2
+gh release create v1.0.2 \
   --repo asketmc/AMCTimber \
-  --target v1.0.1 \
-  --title "AMCTimber v1.0.1" \
+  --target v1.0.2 \
+  --title "AMCTimber v1.0.2" \
   --notes-file CHANGELOG.md
 ```
 
