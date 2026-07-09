@@ -54,7 +54,8 @@ jobs:
           grep " ${archive}$" syft_checksums.txt > syft.sha256
           sha256sum -c syft.sha256
           tar -xzf "$archive" syft
-          ./syft release -o spdx-json=release/sbom.spdx.json
+          version="${GITHUB_REF_NAME#v}"
+          ./syft "release/AMCTimber-${version}.jar" -o spdx-json=release/sbom.spdx.json
       - name: CycloneDX SBOM
         run: |
           set -euo pipefail

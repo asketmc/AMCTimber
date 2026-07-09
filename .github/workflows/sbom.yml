@@ -41,7 +41,9 @@ jobs:
           grep " ${archive}$" syft_checksums.txt > syft.sha256
           sha256sum -c syft.sha256
           tar -xzf "$archive" syft
-          ./syft target -o spdx-json=sbom.spdx.json
+          jar="$(find target -maxdepth 1 -name 'AMCTimber-*.jar' -print -quit)"
+          test -n "$jar"
+          ./syft "$jar" -o spdx-json=sbom.spdx.json
       - name: CycloneDX SBOM
         run: |
           set -euo pipefail
