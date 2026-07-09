@@ -40,22 +40,12 @@ jobs:
           cp "$jar" "release/AMCTimber-${version}.jar"
           bash scripts/check-release-jar.sh "release/AMCTimber-${version}.jar" release/jar-safety-report.txt
       - name: SPDX SBOM
-        env:
-          SYFT_VERSION: "1.42.3"
         run: |
           set -euo pipefail
-          archive="syft_${SYFT_VERSION}_linux_amd64.tar.gz"
-          curl --proto '=https' --tlsv1.2 --fail --location --show-error --silent \
-            --retry 5 --retry-all-errors --retry-delay 5 \
-            -o "$archive" "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/${archive}"
-          curl --proto '=https' --tlsv1.2 --fail --location --show-error --silent \
-            --retry 5 --retry-all-errors --retry-delay 5 \
-            -o syft_checksums.txt "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_checksums.txt"
-          grep " ${archive}$" syft_checksums.txt > syft.sha256
-          sha256sum -c syft.sha256
-          tar -xzf "$archive" syft
           version="${GITHUB_REF_NAME#v}"
-          ./syft "release/AMCTimber-${version}.jar" -o spdx-json=release/sbom.spdx.json
+          mvn -B -ntp -DskipTests org.spdx:spdx-maven-plugin:1.0.4:createSPDX
+          cp "target/site/com.asketmc_amctimber-${version}.spdx.json" release/sbom.spdx.json
+          test -s release/sbom.spdx.json
       - name: CycloneDX SBOM
         run: |
           set -euo pipefail
