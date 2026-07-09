@@ -40,24 +40,30 @@ final class FellJobManager {
         if (activeCuts.size() >= cfg.maxConcurrentFells) return false;
         if (!activeCuts.add(cutKey)) return false;         // already toppling this cut
 
-        // Canopy loot rolls against the LIVE leaf blocks, so it must happen before removal.
-        List<ItemStack> leafLoot = cfg.leafLoot ? collectLeafLoot(shape) : List.of();
+        boolean handedOff = false;
+        try {
+            // Canopy loot rolls against the LIVE leaf blocks, so it must happen before removal.
+            List<ItemStack> leafLoot = cfg.leafLoot ? collectLeafLoot(shape) : List.of();
 
-        // Remove every collected block (leaves first so log removal doesn't schedule decay on blocks we
-        // are about to clear anyway). Physics on: attached vines/cocoa/snow pop with natural drops.
-        World w = shape.world;
-        for (TreeShape.Node n : shape.leaves) removeBlock(w, n);
-        for (TreeShape.Node n : shape.logs) removeBlock(w, n);
+            // Remove every collected block (leaves first so log removal doesn't schedule decay on blocks we
+            // are about to clear anyway). Physics on: attached vines/cocoa/snow pop with natural drops.
+            World w = shape.world;
+            for (TreeShape.Node n : shape.leaves) removeBlock(w, n);
+            for (TreeShape.Node n : shape.logs) removeBlock(w, n);
 
-        // How far the rig must drop after rotating, so a mid-trunk cut still lands on the ground.
-        double yDrop = groundDrop(shape);
+            // How far the rig must drop after rotating, so a mid-trunk cut still lands on the ground.
+            double yDrop = groundDrop(shape);
 
-        plugin.fx().crackStart(new Location(w, shape.cutX + 0.5, shape.cutY, shape.cutZ + 0.5));
+            plugin.fx().crackStart(new Location(w, shape.cutX + 0.5, shape.cutY, shape.cutZ + 0.5));
 
-        ToppleAnimator.Rig rig = ToppleAnimator.spawn(cfg, shape);
-        UUID ownerId = owner != null ? owner.getUniqueId() : null;
-        new FellJob(plugin, this, shape, rig, ownerId, cutKey, yDrop, leafLoot).start();
-        return true;
+            ToppleAnimator.Rig rig = ToppleAnimator.spawn(cfg, shape);
+            UUID ownerId = owner != null ? owner.getUniqueId() : null;
+            new FellJob(plugin, this, shape, rig, ownerId, cutKey, yDrop, leafLoot).start();
+            handedOff = true;
+            return true;
+        } finally {
+            if (!handedOff) release(cutKey);
+        }
     }
 
     /** Called by a FellJob when it lands — frees the cut slot. */

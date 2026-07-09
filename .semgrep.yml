@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: GPL-3.0-only
+
+rules:
+  - id: amctimber-no-process-exec
+    message: AMCTimber should not spawn OS processes from plugin runtime code.
+    severity: ERROR
+    languages: [java]
+    pattern-either:
+      - pattern: Runtime.getRuntime().exec(...)
+      - pattern: new ProcessBuilder(...)
+
+  - id: amctimber-no-native-library-load
+    message: AMCTimber should not load native libraries.
+    severity: ERROR
+    languages: [java]
+    pattern-either:
+      - pattern: System.load(...)
+      - pattern: System.loadLibrary(...)
+
+  - id: amctimber-no-url-classloader
+    message: AMCTimber should not load remote or nested code at runtime.
+    severity: ERROR
+    languages: [java]
+    pattern: new URLClassLoader(...)

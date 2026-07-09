@@ -13,6 +13,8 @@ import java.util.logging.Logger;
  *   command: "aureliumskills xp %player% %skill% %amount%" # AuraSkills
  *   command: "mcmmo addxp %player% %skill% %amount%"       # mcMMO (skill = Woodcutting)</pre>
  *
+ * Treat this as trusted server-operator config, not arbitrary player input.
+ *
  * Placeholders: {@code %player%}, {@code %skill%}, {@code %amount%}. Dispatched as CONSOLE on the global
  * region thread (Folia-safe) so it works regardless of who triggered the fell. {@code mode: none} (or
  * {@code enabled: false}) turns it off and hides the XP part of the yield toast.

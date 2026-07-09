@@ -1,7 +1,5 @@
 package com.asketmc.timber;
 
-import org.bstats.bukkit.Metrics;
-import org.bstats.charts.SimplePie;
 import org.bukkit.Bukkit;
 import org.bukkit.block.Block;
 import org.bukkit.command.Command;
@@ -26,9 +24,6 @@ import java.io.File;
  * dependencies (WorldGuard and Towny are optional, fail-open integrations).
  */
 public final class TimberPlugin extends JavaPlugin implements CommandExecutor {
-
-    /** bStats plugin id. 0 = disabled. Register at https://bstats.org/getting-started and set the real id. */
-    private static final int BSTATS_ID = 0;
 
     private TimberConfig cfg;
     private Debug debug;
@@ -57,7 +52,6 @@ public final class TimberPlugin extends JavaPlugin implements CommandExecutor {
         if (getCommand("amctimber") != null) getCommand("amctimber").setExecutor(this);
         // per-second despawn / orphan sweep (global region — Folia-safe)
         sched.globalTimer(() -> store.sweep(fx, sched), 20L, 20L);
-        startMetrics();
         String hooks = protection.hooks();
         debug.info("AMCTimber v" + getPluginMeta().getVersion() + " enabled — "
                 + (Sched.FOLIA ? "Folia" : "Paper") + ", felling " + (cfg.enabled ? "on" : "OFF")
@@ -88,16 +82,6 @@ public final class TimberPlugin extends JavaPlugin implements CommandExecutor {
         File f = new File(getDataFolder(), "messages.yml");
         if (!f.exists()) saveResource("messages.yml", false);
         messages.load(YamlConfiguration.loadConfiguration(f));
-    }
-
-    private void startMetrics() {
-        if (!cfg.metricsEnabled || BSTATS_ID <= 0) return;
-        try {
-            Metrics metrics = new Metrics(this, BSTATS_ID);
-            metrics.addCustomChart(new SimplePie("platform", () -> Sched.FOLIA ? "Folia" : "Paper"));
-        } catch (Throwable t) {
-            debug.warn("bStats init failed: " + t);
-        }
     }
 
     TimberConfig cfg() { return cfg; }

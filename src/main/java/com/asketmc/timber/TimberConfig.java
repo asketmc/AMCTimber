@@ -18,6 +18,11 @@ import java.util.Set;
  * The pure maths helpers (yield, hits, durability, crush) live here and are covered by {@link SelfTest}.
  */
 final class TimberConfig {
+    static final int MAX_TREE_BLOCKS_CAP = 5_000;
+    static final int MAX_DISPLAY_ENTITIES_CAP = 1_000;
+    static final int MAX_CONCURRENT_FELLS_CAP = 32;
+    static final int MAX_DESPAWN_SECONDS_CAP = 3_600;
+
     final String debug;                 // off | info | full
 
     final boolean enabled;
@@ -87,8 +92,6 @@ final class TimberConfig {
     final boolean particles;
     final boolean fallingLeaves;
 
-    final boolean metricsEnabled;
-
     TimberConfig(FileConfiguration c) {
         this.debug = c.getString("debug", "info");
 
@@ -107,7 +110,7 @@ final class TimberConfig {
         this.tierMaxLogs = parseTiers(c.getConfigurationSection("tool-scaling.tiers"));
 
         this.minTreeHeight = Math.max(2, c.getInt("detection.min-tree-height", 4));
-        this.maxTreeBlocks = Math.max(50, c.getInt("detection.max-tree-blocks", 1500));
+        this.maxTreeBlocks = clampInt(c.getInt("detection.max-tree-blocks", 1500), 50, MAX_TREE_BLOCKS_CAP);
         this.leafAttachRadius = Math.max(1, c.getInt("detection.leaf-attach-radius", 5));
         this.minNaturalLeaves = Math.max(0, c.getInt("detection.min-natural-leaves", 8));
         this.respectBuilds = c.getBoolean("detection.respect-builds", true);
@@ -116,22 +119,22 @@ final class TimberConfig {
         this.extraNatural = parseMaterials(c.getStringList("detection.extra-natural"));
 
         this.creakTicks = (int) clamp(c.getInt("animation.creak-ticks", 5), 0, 20);
-        this.fallDurationTicks = Math.max(2, c.getInt("animation.fall-duration-ticks", 26));
-        this.bounceTicks = Math.max(0, c.getInt("animation.bounce-ticks", 5));
+        this.fallDurationTicks = clampInt(c.getInt("animation.fall-duration-ticks", 26), 2, 200);
+        this.bounceTicks = clampInt(c.getInt("animation.bounce-ticks", 5), 0, 100);
         this.fallRestDegrees = clamp(c.getDouble("animation.fall-rest-degrees", 88), 60, 90);
         this.overshootDegrees = clamp(c.getDouble("animation.overshoot-degrees", 3), 0, 10);
-        this.maxDisplayEntities = Math.max(16, c.getInt("animation.max-display-entities", 400));
-        this.maxConcurrentFells = Math.max(1, c.getInt("animation.max-concurrent-fells", 8));
+        this.maxDisplayEntities = clampInt(c.getInt("animation.max-display-entities", 400), 16, MAX_DISPLAY_ENTITIES_CAP);
+        this.maxConcurrentFells = clampInt(c.getInt("animation.max-concurrent-fells", 8), 1, MAX_CONCURRENT_FELLS_CAP);
         this.viewRange = (float) clamp(c.getDouble("animation.view-range", 1.2), 0.1, 5.0);
 
         this.leaveStump = c.getBoolean("trunk.leave-stump", true);
         this.hitsToFell = Math.max(1, c.getInt("trunk.hits-to-fell", 3));
         this.hitsPerLog = clamp(c.getDouble("trunk.hits-per-log", 0.15), 0.0, 2.0);
-        this.maxHits = Math.max(1, c.getInt("trunk.max-hits", 28));
+        this.maxHits = clampInt(c.getInt("trunk.max-hits", 28), 1, 100);
         this.chopCooldownTicks = (int) clamp(c.getInt("trunk.chop-cooldown-ticks", 7), 0, 100);
         this.logYieldMultiplier = clamp(c.getDouble("trunk.log-yield-multiplier", 0.8), 0.0, 4.0);
         this.leafLoot = c.getBoolean("trunk.leaf-loot", true);
-        this.despawnSeconds = Math.max(10, c.getInt("trunk.despawn-seconds", 300));
+        this.despawnSeconds = clampInt(c.getInt("trunk.despawn-seconds", 300), 10, MAX_DESPAWN_SECONDS_CAP);
         this.ownerLock = c.getBoolean("trunk.owner-lock", false);
 
         this.durabilityPerFellLog = clamp(c.getDouble("durability.per-fell-log", 0.25), 0.0, 10.0);
@@ -156,7 +159,6 @@ final class TimberConfig {
         this.particles = c.getBoolean("fx.particles", true);
         this.fallingLeaves = c.getBoolean("fx.falling-leaves", true);
 
-        this.metricsEnabled = c.getBoolean("metrics", true);
     }
 
     /** True if felling is allowed in the given world name. */
@@ -229,6 +231,10 @@ final class TimberConfig {
     }
 
     private static double clamp(double v, double lo, double hi) {
+        return Math.max(lo, Math.min(hi, v));
+    }
+
+    private static int clampInt(int v, int lo, int hi) {
         return Math.max(lo, Math.min(hi, v));
     }
 }

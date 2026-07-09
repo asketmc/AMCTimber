@@ -25,8 +25,8 @@ jobs:
           persist-credentials: false
       - name: Run Semgrep
         run: |
-          python3 -m pip install --user semgrep
-          "$HOME/.local/bin/semgrep" scan --config p/java --config p/security-audit --sarif --output semgrep.sarif
+          python3 -m pip install --user semgrep==1.168.0
+          "$HOME/.local/bin/semgrep" scan --config .semgrep.yml --sarif --output semgrep.sarif
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@1ad29ea4a422cce9a242a9fae469541dcd08addc # v4
         with:

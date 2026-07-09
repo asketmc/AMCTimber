@@ -11,7 +11,8 @@ Before a release:
 1. Bump the version in `pom.xml`.
 2. Bump the version in `src/main/resources/plugin.yml`.
 3. Add a `CHANGELOG.md` entry.
-4. Merge the release commit to `main`.
+4. Confirm `bash scripts/verify-release-version.sh` prints the same version.
+5. Merge the release commit to `main`.
 
 ## 2. GitHub Release Evidence
 
@@ -29,16 +30,17 @@ from the tagged source and uploads:
 Release process:
 
 ```bash
-git tag v1.0.3
-git push origin v1.0.3
-gh release create v1.0.3 \
+git tag v1.0.4
+git push origin v1.0.4
+gh release create v1.0.4 \
   --repo asketmc/AMCTimber \
-  --target v1.0.3 \
-  --title "AMCTimber v1.0.3" \
+  --target v1.0.4 \
+  --title "AMCTimber v1.0.4" \
   --notes-file CHANGELOG.md
 ```
 
-After the release workflow finishes, verify assets with `docs/VERIFY_RELEASE.md`.
+The release workflow enforces that the tag, `pom.xml`, and `plugin.yml` versions match. After the
+release workflow finishes, verify assets with `docs/VERIFY_RELEASE.md`.
 
 ## 3. Modrinth
 
@@ -55,17 +57,7 @@ Suggested Modrinth metadata:
 - Summary: `Valheim-style tree felling`
 - Source: <https://github.com/asketmc/AMCTimber>
 
-## 4. bStats
-
-bStats is optional. It remains disabled while `TimberPlugin.BSTATS_ID` is `0`.
-
-If enabled later:
-
-1. Register the plugin at <https://bstats.org/getting-started>.
-2. Put the numeric plugin id in `TimberPlugin.java`.
-3. Rebuild and release normally.
-
-## 5. Other Distribution
+## 4. Other Distribution
 
 Hangar or other mirrors should use the same verified GitHub Release jar. Keep release notes, supported
 Minecraft versions, and source links consistent across platforms.

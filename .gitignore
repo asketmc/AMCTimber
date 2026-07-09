@@ -1,6 +1,8 @@
 # Maven
 target/
 dist/
+release/
+release-dry-run/
 dependency-reduced-pom.xml
 *.flattened-pom.xml
 

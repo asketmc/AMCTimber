@@ -90,4 +90,20 @@ class TimberConfigTest {
         assertTrue(cfg.maxHits >= cfg.hitsToFell);
         assertTrue(cfg.leaveStump && cfg.leafLoot && cfg.sneakBypass && cfg.crushEnabled);
     }
+
+    @Test
+    void expensiveSettingsHaveUpperBounds() {
+        YamlConfiguration yml = new YamlConfiguration();
+        yml.set("detection.max-tree-blocks", 1_000_000);
+        yml.set("animation.max-display-entities", 1_000_000);
+        yml.set("animation.max-concurrent-fells", 1_000_000);
+        yml.set("trunk.despawn-seconds", 1_000_000);
+
+        TimberConfig capped = new TimberConfig(yml);
+
+        assertEquals(TimberConfig.MAX_TREE_BLOCKS_CAP, capped.maxTreeBlocks);
+        assertEquals(TimberConfig.MAX_DISPLAY_ENTITIES_CAP, capped.maxDisplayEntities);
+        assertEquals(TimberConfig.MAX_CONCURRENT_FELLS_CAP, capped.maxConcurrentFells);
+        assertEquals(TimberConfig.MAX_DESPAWN_SECONDS_CAP, capped.despawnSeconds);
+    }
 }
