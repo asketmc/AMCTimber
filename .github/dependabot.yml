@@ -8,10 +8,12 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     ignore:
+      # Compatibility baseline dependencies are pinned intentionally. Updating them
+      # needs a manual PR with Paper 1.20.x -> 1.21.x runtime evidence.
+      - dependency-name: "io.papermc.paper:paper-api"
+      - dependency-name: "com.palmergames.bukkit.towny:towny"
       - dependency-name: "org.joml:joml"
-        update-types: ["version-update:semver-patch", "version-update:semver-minor"]
       - dependency-name: "com.sk89q.worldguard:worldguard-bukkit"
-        update-types: ["version-update:semver-patch", "version-update:semver-minor"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
