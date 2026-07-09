@@ -44,5 +44,8 @@ class PendingYieldFileTest {
                 + "entry.0.x=0\nentry.0.y=64\nentry.0.z=0\n"
                 + "entry.0.material=DIAMOND_BLOCK\nentry.0.amount=1\n");
         assertThrows(IOException.class, () -> PendingYieldFile.read(file));
+
+        Files.writeString(file, "schema=" + PendingYieldFile.SCHEMA + "\ncount=not-a-number\n");
+        assertThrows(IOException.class, () -> PendingYieldFile.read(file));
     }
 }

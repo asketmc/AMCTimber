@@ -130,7 +130,11 @@ final class PendingYieldFile {
     }
 
     private static int parseInt(Properties properties, String key) {
-        return Integer.parseInt(required(properties, key));
+        try {
+            return Integer.parseInt(required(properties, key));
+        } catch (NumberFormatException malformed) {
+            throw new IllegalArgumentException("invalid integer " + key, malformed);
+        }
     }
 
     private static boolean supportedLogMaterial(Material material) {

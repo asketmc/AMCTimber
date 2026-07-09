@@ -158,10 +158,11 @@ final class FelledTrunk {
             messages.yield(player, dropMaterial, totalYield, xp, xpBridge.present());
             lifecycle.complete();
         } catch (RuntimeException | LinkageError failure) {
-            if (!yield.empty() && lifecycle.retryCompletion()) {
+            int remaining = yield.remaining();
+            if (remaining > 0 && lifecycle.retryCompletion()) {
                 cleanup = false;
                 despawnAtMillis = Long.MAX_VALUE;
-                debug.warn("trunk yield delivery deferred; remaining logs=" + yield.remaining());
+                debug.warn("trunk yield delivery deferred; remaining logs=" + remaining);
                 return false;
             }
             lifecycle.fail();
@@ -185,27 +186,29 @@ final class FelledTrunk {
 
     synchronized void deferOnShutdown(FelledTrunkStore store) {
         if (!lifecycle.fail()) return;
+        int remaining = yield.remaining();
         boolean deferred = false;
         try {
-            deferred = yield.empty() || store.deferYield(world, center(), dropMaterial, yield, reservation);
-            if (!yield.empty()) {
-                debug.warn((deferred ? "persisting " : "could not persist ") + yield.remaining()
+            deferred = remaining == 0 || store.deferYield(world, center(), dropMaterial, yield, reservation);
+            if (remaining > 0) {
+                debug.warn((deferred ? "persisting " : "could not persist ") + remaining
                         + " pending logs during plugin shutdown");
             }
         } finally {
-            cleanupEntities(deferred && !yield.empty());
+            cleanupEntities(deferred && remaining > 0);
         }
     }
 
     synchronized boolean deferCompletedYield(FelledTrunkStore store, String reason) {
-        if (progress < required || yield.empty() || !lifecycle.is(FellLifecycle.State.LANDED)) return false;
+        int remaining = yield.remaining();
+        if (progress < required || remaining == 0 || !lifecycle.is(FellLifecycle.State.LANDED)) return false;
         if (!lifecycle.fail()) return false;
         boolean deferred = false;
         try {
             deferred = store.deferYield(world, center(), dropMaterial, yield, reservation);
             debug.warn((deferred ? "moved completed trunk yield to recovery queue after "
                     : "could not retain completed trunk yield after ") + reason
-                    + "; remaining logs=" + yield.remaining());
+                    + "; remaining logs=" + remaining);
             return true;
         } finally {
             cleanupEntities(deferred);
@@ -227,8 +230,8 @@ final class FelledTrunk {
 
     private void dropRemainingYield() {
         int stackIndex = 0;
-        while (!yield.empty()) {
-            int amount = yield.nextStack();
+        int amount;
+        while ((amount = yield.nextStack()) > 0) {
             double distance = Math.min(height - 0.5, 1.0 + stackIndex * 2.0);
             int delivered = ItemDelivery.tryDeliver(world, pointAt(Math.max(0.5, distance)),
                     new ItemStack(dropMaterial, amount));

@@ -42,8 +42,8 @@ final class PendingYield {
             return new Attempt(false, false);
         }
         int before = yield.remaining();
-        while (!yield.empty()) {
-            int amount = yield.nextStack();
+        int amount;
+        while ((amount = yield.nextStack()) > 0) {
             int delivered = ItemDelivery.tryDeliver(
                     world, location, new ItemStack(material, amount));
             if (delivered > 0) yield.delivered(delivered);
