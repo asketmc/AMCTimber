@@ -1,8 +1,9 @@
 # Verify AMCTimber Releases
 
-AMCTimber releases are published as GitHub Release assets. The release workflow builds the jar from the
-tagged source, generates checksums and SBOMs, signs artifacts with Sigstore/cosign keyless signing, and
-creates GitHub artifact attestations.
+AMCTimber releases are published as GitHub Release assets. A read-only job first verifies that the exact
+tagged commit is on `main`, builds and runtime-smokes the jar, and hands off a checksum-validated candidate.
+A separate job with publication permissions reads but never executes that candidate, signs it with
+Sigstore/cosign keyless signing, creates GitHub artifact attestations, and uploads the assets.
 
 This is verification evidence, not a formal security certification.
 
@@ -42,7 +43,7 @@ Install `cosign`, then verify a downloaded jar and its bundle:
 ```bash
 cosign verify-blob \
   --bundle AMCTimber-1.0.7.jar.sigstore.json \
-  --certificate-identity-regexp 'https://github.com/asketmc/AMCTimber/.github/workflows/release.yml@refs/tags/v.*' \
+  --certificate-identity 'https://github.com/asketmc/AMCTimber/.github/workflows/release.yml@refs/tags/v1.0.7' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   AMCTimber-1.0.7.jar
 ```
@@ -59,8 +60,9 @@ gh attestation verify AMCTimber-1.0.7.jar \
   --source-ref refs/tags/v1.0.7
 ```
 
-The attestation should bind the jar to this repository, the release workflow, and the release tag. It does
-not attest that runtime behavior is safe or correct.
+Both commands deliberately name the exact requested tag. Do not replace it with a `v.*` identity: that
+would also accept a different official release. The attestation binds the jar to this repository, release
+workflow, and tag; it does not attest that runtime behavior is safe or correct.
 
 ## Inspect SBOMs
 
@@ -89,8 +91,8 @@ analysis, or manual code review.
 ## Runtime Evidence
 
 The `Paper Runtime Smoke` PR/push workflow tests the jar built in that workflow. During publication,
-`Release Security` separately runs the already prepared release jar on Paper 1.20.6 and the latest stable
-1.21 release before signing or upload. Its `release-runtime-smoke-vx.y.z` Actions artifact records
+`Release Security` runs the prepared release jar in its read-only job on Paper 1.20.6 and the latest stable
+1.21 release before the privileged job starts. Its `release-runtime-smoke-vx.y.z` Actions artifact records
 `plugin_sha256`; match that value to the jar line in `SHA256SUMS.txt` before attaching the runtime evidence
 to a downloaded release.
 

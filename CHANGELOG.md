@@ -5,6 +5,12 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### Security
+
+- Split release build/runtime smoke from signing and publication permissions, require release tags to
+  resolve to commits on `main`, timestamp-pin the Paper API input, scope custom Maven repositories to
+  owned group IDs, and document exact-tag Sigstore verification.
+
 ## [1.0.7] - 2026-07-10
 
 ### Fixed
