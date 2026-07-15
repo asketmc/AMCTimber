@@ -53,16 +53,19 @@ class ProtectionTest {
 
     @Test
     @Tag("P0")
-    void wholeTreeCheckIncludesBaseLogsAndEveryRemovedLeaf() {
+    void wholeTreeCheckIncludesBaseLogsLeavesAndAttachmentsButNotKeptStumps() {
         CountingHook hook = new CountingHook();
         Protection protection = new Protection(true, true, ignored -> {}, hook);
         protection.init();
         TreeShape shape = new TreeShape(null,
-                List.of(node(0, true), node(1, true)), List.of(node(2, false), node(3, false)),
+                List.of(node(0, true), node(1, true)),
+                List.of(node(8, true), node(9, true), node(10, true), node(11, true)),
+                List.of(node(2, false), node(3, false)),
+                List.of(node(4, false), node(5, false)),
                 0, 0, 0, Material.OAK_LOG, 0, 0, 0, 1, 0, 4, true, true, null);
 
         assertTrue(protection.canFell(null, shape));
-        assertEquals(5, hook.calls);
+        assertEquals(7, hook.calls);
     }
 
     private static ProtectionHook hook(String name, ProtectionHook.Decision decision) {

@@ -7,13 +7,15 @@ import org.bukkit.block.data.BlockData;
 import java.util.List;
 
 /**
- * Immutable result of a tree scan: the snapshotted log + leaf blocks (type/data/position only — no live
+ * Immutable result of a tree scan: the snapshotted log, stump, leaf, and safe attachment blocks
+ * (type/data/position only — no live
  * Block or entity references held), the pivot the topple rotates about, the fall direction, and the
  * {@code isTree} verdict. Pure data, so the classification in {@link TreeScanner} is independently
  * testable and there is a clean boundary if the BFS is ever moved off-thread.
  *
- * <p>In stump mode the block the player axed is NOT part of {@code logs} — it stays in the world as the
- * stump top (the break event is cancelled), and only the section above the cut topples.
+ * <p>In stump mode the detected trunk footprint at the cut level is NOT part of {@code logs}. Those
+ * blocks stay in the world as the stump top (the break event is cancelled), and only the section above
+ * the cut topples. Ordinary trunks keep one stump block; complete 2x2 trunks keep all four.
  */
 final class TreeShape {
 
@@ -28,9 +30,11 @@ final class TreeShape {
     }
 
     final World world;
-    final List<Node> logs;           // the toppling section (excludes the kept stump block in stump mode)
+    final List<Node> logs;           // the toppling section (excludes every kept stump-footprint block)
+    final List<Node> stumps;         // unchanged trunk footprint at the cut level; empty without stump mode
     final List<Node> leaves;
-    final int cutX, cutY, cutZ;      // the block the player axed (de-dup key; kept in stump mode)
+    final List<Node> attachments;    // safe non-display tree parts removed with the fell (vines, cocoa, etc.)
+    final int cutX, cutY, cutZ;      // the block the player axed (de-dup key; part of stumps in stump mode)
     final Material baseMaterial;     // log material at the cut — what the felled trunk drops
     final double pivotX, pivotY, pivotZ; // rotation pivot: centroid of the lowest collected log level
     final double dirX, dirZ;         // unit fall direction (away from player)
@@ -39,13 +43,15 @@ final class TreeShape {
     final boolean isTree;
     final String rejectReason;       // null when isTree
 
-    TreeShape(World world, List<Node> logs, List<Node> leaves,
+    TreeShape(World world, List<Node> logs, List<Node> stumps, List<Node> leaves, List<Node> attachments,
               int cutX, int cutY, int cutZ, Material baseMaterial,
               double pivotX, double pivotY, double pivotZ, double dirX, double dirZ,
               int height, boolean stump, boolean isTree, String rejectReason) {
         this.world = world;
         this.logs = logs;
+        this.stumps = stumps;
         this.leaves = leaves;
+        this.attachments = attachments;
         this.cutX = cutX; this.cutY = cutY; this.cutZ = cutZ;
         this.baseMaterial = baseMaterial;
         this.pivotX = pivotX; this.pivotY = pivotY; this.pivotZ = pivotZ;
@@ -57,6 +63,7 @@ final class TreeShape {
     }
 
     int logCount() { return logs.size(); }
-    /** Biological tree size used for tool-tier gating: toppling logs plus the kept stump block. */
-    int effectiveLogCount() { return logs.size() + (stump ? 1 : 0); }
+    int stumpCount() { return stumps.size(); }
+    /** Biological tree size used for tool-tier gating: toppling logs plus the kept stump footprint. */
+    int effectiveLogCount() { return logs.size() + stumps.size(); }
 }

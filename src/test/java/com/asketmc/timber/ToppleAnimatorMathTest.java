@@ -153,7 +153,7 @@ class ToppleAnimatorMathTest {
     }
 
     private static TreeShape shape(int logs, int leaves, int height) {
-        return new TreeShape(null, nodes(logs), nodes(leaves), 0, 0, 0, null,
+        return new TreeShape(null, nodes(logs), List.of(), nodes(leaves), List.of(), 0, 0, 0, null,
                 0, 0, 0, 1, 0, height, true, true, null);
     }
 }

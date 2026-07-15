@@ -13,9 +13,11 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiPredicate;
 
 /**
  * Flood-fill tree detection. Runs synchronously on the main thread inside the break event (you cannot
@@ -24,11 +26,18 @@ import java.util.Set;
  * {@link TreeShape}, so the dangerous "false-positive on a player's log cabin" logic is unit-tested.
  *
  * <p><b>Stump mode</b> (default): the cut happens AT the axed block — only the connected section above
- * the cut topples; everything below (and the axed block itself) stays in the world as a chop-able stump,
- * exactly like Valheim. Cutting near the top of a tall tree prunes it; the remainder still stands.
+ * the cut topples; everything below and the detected 1x1/2x2 cut-level footprint stays in the world as a
+ * chop-able stump, exactly like Valheim. Cutting near the top of a tall tree prunes it; the remainder
+ * still stands.
  * With {@code leave-stump: false} the scan first walks down to the true base and the whole tree topples.
  */
 final class TreeScanner {
+    private static final int[][] FACE_OFFSETS = {
+            {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}
+    };
+
+    record FootprintCell(int x, int z) {}
+
     private final TimberConfig cfg;
 
     TreeScanner(TimberConfig cfg) { this.cfg = cfg; }
@@ -68,6 +77,64 @@ final class TreeScanner {
     /** True if the leaf block is a natural (vanilla-grown) leaf — placed leaves carry persistent=true. */
     static boolean naturalLeaf(BlockData d) {
         return d instanceof Leaves l && !l.isPersistent();
+    }
+
+    /**
+     * Keep a complete 2x2 trunk footprint when the cut block is one of its corners. A partial square or
+     * horizontal log line is not widened into a stump. Unioning every complete square that contains the
+     * cut also behaves conservatively for unusual larger trunks without flood-filling branches.
+     */
+    static Set<FootprintCell> stumpFootprint(
+            int cutX, int cutZ, BiPredicate<Integer, Integer> matchingLogAt) {
+        Set<FootprintCell> footprint = new LinkedHashSet<>();
+        for (int minX = cutX - 1; minX <= cutX; minX++) {
+            for (int minZ = cutZ - 1; minZ <= cutZ; minZ++) {
+                boolean complete = true;
+                for (int dx = 0; dx <= 1 && complete; dx++) {
+                    for (int dz = 0; dz <= 1; dz++) {
+                        if (!matchingLogAt.test(minX + dx, minZ + dz)) {
+                            complete = false;
+                            break;
+                        }
+                    }
+                }
+                if (!complete) continue;
+                for (int dx = 0; dx <= 1; dx++) {
+                    for (int dz = 0; dz <= 1; dz++) {
+                        footprint.add(new FootprintCell(minX + dx, minZ + dz));
+                    }
+                }
+            }
+        }
+        if (footprint.isEmpty()) footprint.add(new FootprintCell(cutX, cutZ));
+        return footprint;
+    }
+
+    /** Safe, stateless tree attachments. Content-bearing block entities such as bee nests are excluded. */
+    static boolean isSafeAttachmentName(String name) {
+        return switch (name) {
+            case "VINE", "COCOA", "MANGROVE_PROPAGULE", "PALE_HANGING_MOSS",
+                    "SNOW", "MOSS_CARPET", "PALE_MOSS_CARPET" -> true;
+            default -> false;
+        };
+    }
+
+    /** Whether an attachment at the given face offset is owned by a snapshotted log/stump or leaf. */
+    static boolean attachmentBelongs(String name, boolean sourceLog, int dx, int dy, int dz) {
+        if (!isSafeAttachmentName(name)) return false;
+        return switch (name) {
+            case "VINE" -> true;
+            case "COCOA" -> sourceLog && dy == 0;
+            case "MANGROVE_PROPAGULE", "PALE_HANGING_MOSS" ->
+                    !sourceLog && dx == 0 && dy == -1 && dz == 0;
+            case "SNOW", "MOSS_CARPET", "PALE_MOSS_CARPET" ->
+                    dx == 0 && dy == 1 && dz == 0;
+            default -> false;
+        };
+    }
+
+    static boolean isVerticalAttachmentName(String name) {
+        return name.equals("VINE") || name.equals("PALE_HANGING_MOSS");
     }
 
     /**
@@ -163,9 +230,29 @@ final class TreeScanner {
         if (baseData == null) return rejected(w, ox, oy, oz, broken.getType(), dirX, dirZ, stump, scan.reason());
         final Material baseMat = baseData.getMaterial();
 
+        // Preserve the whole natural giant-trunk footprint, not only the one corner the player clicked.
+        List<TreeShape.Node> stumps = new ArrayList<>();
+        Set<Long> stumpKeys = new HashSet<>();
+        if (stump) {
+            final int stumpY = oy;
+            Set<FootprintCell> footprint = stumpFootprint(ox, oz,
+                    (x, z) -> logMatches(scan.material(x, stumpY, z), species, sameSpecies));
+            if (scan.blocked()) {
+                return rejected(w, ox, oy, oz, baseMat, dirX, dirZ, true, scan.reason());
+            }
+            for (FootprintCell cell : footprint) {
+                BlockData data = scan.data(cell.x(), oy, cell.z());
+                if (data == null) {
+                    return rejected(w, ox, oy, oz, baseMat, dirX, dirZ, true, scan.reason());
+                }
+                stumps.add(new TreeShape.Node(cell.x(), oy, cell.z(), data.clone(), true));
+                stumpKeys.add(key(cell.x(), oy, cell.z()));
+            }
+        }
+
         // 2) BFS the connected logs over a full 3x3x3 neighbourhood (captures branches + 2x2 trunks),
-        //    never walking below the cut level. In stump mode the origin block itself is the seed but is
-        //    NOT collected — it stays in the world as the stump top.
+        //    never walking below the cut level. Kept footprint blocks remain BFS bridges into every trunk
+        //    column but are not collected into the toppling section.
         List<TreeShape.Node> logs = new ArrayList<>();
         Set<Long> seen = new HashSet<>();
         Deque<int[]> q = new ArrayDeque<>();
@@ -181,8 +268,7 @@ final class TreeScanner {
             int[] c = q.poll();
             BlockData data = scan.data(c[0], c[1], c[2]);
             if (data == null || !logMatches(data.getMaterial(), species, sameSpecies)) continue;
-            boolean isOrigin = c[0] == ox && c[1] == oy && c[2] == oz;
-            if (!(stump && isOrigin)) {
+            if (!stumpKeys.contains(key(c[0], c[1], c[2]))) {
                 logs.add(new TreeShape.Node(c[0], c[1], c[2], data.clone(), true));
                 minY = Math.min(minY, c[1]);
                 maxY = Math.max(maxY, c[1]);
@@ -252,7 +338,18 @@ final class TreeScanner {
         }
         if (scan.blocked()) return rejected(w, ox, oy, oz, baseMat, dirX, dirZ, stump, scan.reason());
 
-        // 4) Pivot = centroid of the lowest collected log level. For a 1x1 trunk in stump mode that is the
+        // 4) Collect only stateless attachments that are confidently supported by this tree. Direct
+        //    sources are face-neighbours; vines and pale hanging moss then extend only vertically in the
+        //    same column. This removes long jungle curtains without spreading sideways into another tree.
+        int attachmentBudget = Math.max(0, cfg.maxTreeBlocks - logs.size() - leaves.size());
+        AttachmentScan attachmentScan = collectAttachments(scan, logs, stumps, leaves, attachmentBudget);
+        if (scan.blocked()) return rejected(w, ox, oy, oz, baseMat, dirX, dirZ, stump, scan.reason());
+        if (attachmentScan.limitHit()) {
+            return rejected(w, ox, oy, oz, baseMat, dirX, dirZ, stump, "too-many-attachments");
+        }
+        List<TreeShape.Node> attachments = attachmentScan.nodes();
+
+        // 5) Pivot = centroid of the lowest collected log level. For a 1x1 trunk in stump mode that is the
         //    block right on top of the stump; for 2x2 trunks it is the footprint centre.
         double sumX = 0, sumZ = 0; int lowLevel = 0;
         for (TreeShape.Node n : logs) {
@@ -264,9 +361,9 @@ final class TreeScanner {
 
         int height = maxY - minY + 1;
 
-        // 5) Verdict — distinguish a tree from a log build / pillar. The stump block is still part of the
-        //    biological tree, so it counts toward the size thresholds even though it doesn't topple.
-        int effLogs = logs.size() + (stump ? 1 : 0);
+        // 6) Verdict — distinguish a tree from a log build / pillar. Every stump-footprint block is still
+        //    part of the biological tree, so it counts toward size thresholds even though it doesn't topple.
+        int effLogs = logs.size() + stumps.size();
         int effHeight = height + (stump ? 1 : 0);
         int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
         int minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
@@ -281,12 +378,62 @@ final class TreeScanner {
         else if (naturalLeafCount < cfg.minNaturalLeaves) reject = "no-canopy(" + naturalLeafCount + ")";
         else if (cfg.wildOnly && persistentLeafSeen) reject = "player-placed-leaves";
         else if (cfg.wildOnly && horizontalSpan > cfg.maxHorizontalLogSpan) reject = "suspicious-log-span";
-        else if (cfg.wildOnly && touchesBuild(logs, scan)) reject = "player-build";
+        else if (cfg.wildOnly && touchesBuild(logs, stumps, scan)) reject = "player-build";
         if (scan.blocked()) reject = scan.reason();
         boolean isTree = reject == null;
 
-        return new TreeShape(w, logs, leaves, ox, oy, oz, baseMat,
+        return new TreeShape(w, logs, stumps, leaves, attachments, ox, oy, oz, baseMat,
                 pivotX, pivotY, pivotZ, dirX, dirZ, height, stump, isTree, reject);
+    }
+
+    private record AttachmentScan(List<TreeShape.Node> nodes, boolean limitHit) {}
+
+    private static AttachmentScan collectAttachments(
+            ScanContext scan, List<TreeShape.Node> logs, List<TreeShape.Node> stumps,
+            List<TreeShape.Node> leaves, int budget) {
+        List<TreeShape.Node> nodes = new ArrayList<>();
+        Set<Long> added = new HashSet<>();
+        List<TreeShape.Node> sources = new ArrayList<>(logs.size() + stumps.size() + leaves.size());
+        sources.addAll(logs);
+        sources.addAll(stumps);
+        sources.addAll(leaves);
+
+        for (TreeShape.Node source : sources) {
+            for (int[] face : FACE_OFFSETS) {
+                int x = source.x + face[0], y = source.y + face[1], z = source.z + face[2];
+                long blockKey = key(x, y, z);
+                if (added.contains(blockKey)) continue;
+                BlockData data = scan.data(x, y, z);
+                if (data == null) return new AttachmentScan(nodes, false);
+                String name = data.getMaterial().name();
+                if (!attachmentBelongs(name, source.log, face[0], face[1], face[2])) continue;
+                if (nodes.size() >= budget) return new AttachmentScan(nodes, true);
+                nodes.add(new TreeShape.Node(x, y, z, data.clone(), false));
+                added.add(blockKey);
+            }
+        }
+
+        int directCount = nodes.size();
+        for (int index = 0; index < directCount; index++) {
+            TreeShape.Node seed = nodes.get(index);
+            String name = seed.data.getMaterial().name();
+            if (!isVerticalAttachmentName(name)) continue;
+            for (int direction : new int[]{-1, 1}) {
+                int y = seed.y + direction;
+                while (true) {
+                    long blockKey = key(seed.x, y, seed.z);
+                    if (added.contains(blockKey)) break;
+                    BlockData data = scan.data(seed.x, y, seed.z);
+                    if (data == null) return new AttachmentScan(nodes, false);
+                    if (!data.getMaterial().name().equals(name)) break;
+                    if (nodes.size() >= budget) return new AttachmentScan(nodes, true);
+                    nodes.add(new TreeShape.Node(seed.x, y, seed.z, data.clone(), false));
+                    added.add(blockKey);
+                    y += direction;
+                }
+            }
+        }
+        return new AttachmentScan(nodes, false);
     }
 
     /**
@@ -294,8 +441,12 @@ final class TreeScanner {
      * "tree" is wired into a structure (cabin / treehouse). Reads cached snapshots; runs only for trees that
      * already passed the size/canopy checks, and remains inside the configured global scan-read budget.
      */
-    private boolean touchesBuild(List<TreeShape.Node> logs, ScanContext scan) {
-        for (TreeShape.Node n : logs) {
+    private boolean touchesBuild(
+            List<TreeShape.Node> logs, List<TreeShape.Node> stumps, ScanContext scan) {
+        List<TreeShape.Node> trunk = new ArrayList<>(logs.size() + stumps.size());
+        trunk.addAll(logs);
+        trunk.addAll(stumps);
+        for (TreeShape.Node n : trunk) {
             for (int dx = -1; dx <= 1; dx++)
                 for (int dy = -1; dy <= 1; dy++)
                     for (int dz = -1; dz <= 1; dz++) {
@@ -317,7 +468,8 @@ final class TreeScanner {
 
     private static TreeShape rejected(World w, int x, int y, int z, Material mat,
                                       double dirX, double dirZ, boolean stump, String reason) {
-        return new TreeShape(w, new ArrayList<>(), new ArrayList<>(), x, y, z, mat,
+        return new TreeShape(w, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                new ArrayList<>(), x, y, z, mat,
                 x + 0.5, y, z + 0.5, dirX, dirZ, 0, stump, false, reason);
     }
 
