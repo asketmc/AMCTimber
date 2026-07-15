@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -16,6 +17,47 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("TreeScanner — species fencing, leaf matching, fall direction")
 class TreeScannerLogicTest {
+
+    @Test
+    @Tag("P0")
+    void complete2x2FootprintKeepsAllFourStumpBlocksFromEveryCutCorner() {
+        Set<TreeScanner.FootprintCell> giant = Set.of(
+                new TreeScanner.FootprintCell(10, 20), new TreeScanner.FootprintCell(11, 20),
+                new TreeScanner.FootprintCell(10, 21), new TreeScanner.FootprintCell(11, 21));
+
+        for (TreeScanner.FootprintCell cut : giant) {
+            assertEquals(giant, TreeScanner.stumpFootprint(cut.x(), cut.z(),
+                    (x, z) -> giant.contains(new TreeScanner.FootprintCell(x, z))));
+        }
+    }
+
+    @Test
+    @Tag("P0")
+    void partialSquareAndHorizontalBranchStayAOneBlockStump() {
+        Set<TreeScanner.FootprintCell> line = Set.of(
+                new TreeScanner.FootprintCell(0, 0), new TreeScanner.FootprintCell(1, 0),
+                new TreeScanner.FootprintCell(2, 0));
+
+        assertEquals(Set.of(new TreeScanner.FootprintCell(0, 0)),
+                TreeScanner.stumpFootprint(0, 0,
+                        (x, z) -> line.contains(new TreeScanner.FootprintCell(x, z))));
+    }
+
+    @Test
+    @Tag("P0")
+    void attachmentOwnershipCoversWildTreeDebrisWithoutDeletingBlockEntities() {
+        assertTrue(TreeScanner.attachmentBelongs("VINE", true, 1, 0, 0));
+        assertTrue(TreeScanner.attachmentBelongs("VINE", false, 0, -1, 0));
+        assertTrue(TreeScanner.attachmentBelongs("COCOA", true, -1, 0, 0));
+        assertFalse(TreeScanner.attachmentBelongs("COCOA", false, -1, 0, 0));
+        assertTrue(TreeScanner.attachmentBelongs("MANGROVE_PROPAGULE", false, 0, -1, 0));
+        assertTrue(TreeScanner.attachmentBelongs("PALE_HANGING_MOSS", false, 0, -1, 0));
+        assertTrue(TreeScanner.attachmentBelongs("SNOW", false, 0, 1, 0));
+        assertFalse(TreeScanner.isSafeAttachmentName("BEE_NEST"));
+        assertFalse(TreeScanner.isSafeAttachmentName("CHEST"));
+        assertTrue(TreeScanner.isVerticalAttachmentName("VINE"));
+        assertFalse(TreeScanner.isVerticalAttachmentName("COCOA"));
+    }
 
     @Test
     void speciesOfName_stripsLogWoodStemHyphaeBlockAndStripped() {

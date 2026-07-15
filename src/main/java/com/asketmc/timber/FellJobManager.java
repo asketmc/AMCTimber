@@ -61,7 +61,7 @@ final class FellJobManager {
         ToppleAnimator.Rig rig = null;
         FellSession session;
         try {
-            List<TreeShape.Node> snapshots = allNodes(shape);
+            List<TreeShape.Node> snapshots = mutationSnapshots(shape);
             if (!journal.preflight(snapshots)) {
                 reservation.close();
                 release(cutKey);
@@ -70,8 +70,7 @@ final class FellJobManager {
             }
 
             List<ItemStack> leafLoot = cfg.leafLoot ? collectLeafLoot(shape) : List.of();
-            for (TreeShape.Node node : shape.leaves) requireRemoved(journal, node);
-            for (TreeShape.Node node : shape.logs) requireRemoved(journal, node);
+            removeTree(journal, shape);
 
             double yDrop = groundDrop(shape);
             runtime.effects().crackStart(new Location(shape.world,
@@ -129,11 +128,22 @@ final class FellJobManager {
         }
     }
 
-    private static List<TreeShape.Node> allNodes(TreeShape shape) {
-        List<TreeShape.Node> nodes = new ArrayList<>(shape.leaves.size() + shape.logs.size());
+    /** Exact snapshot set that must remain stable between scan and mutation, including kept stumps. */
+    static List<TreeShape.Node> mutationSnapshots(TreeShape shape) {
+        List<TreeShape.Node> nodes = new ArrayList<>(shape.stumps.size() + shape.attachments.size()
+                + shape.leaves.size() + shape.logs.size());
+        nodes.addAll(shape.stumps);
+        nodes.addAll(shape.attachments);
         nodes.addAll(shape.leaves);
         nodes.addAll(shape.logs);
         return nodes;
+    }
+
+    /** Exact production removal order, shared by the Paper jungle fixture. */
+    static void removeTree(WorldMutationJournal journal, TreeShape shape) {
+        for (TreeShape.Node node : shape.attachments) requireRemoved(journal, node);
+        for (TreeShape.Node node : shape.leaves) requireRemoved(journal, node);
+        for (TreeShape.Node node : shape.logs) requireRemoved(journal, node);
     }
 
     private static void requireRemoved(WorldMutationJournal journal, TreeShape.Node node) {
@@ -143,7 +153,10 @@ final class FellJobManager {
     private static List<ItemStack> collectLeafLoot(TreeShape shape) {
         Map<Material, Integer> counts = new HashMap<>();
         World world = shape.world;
-        for (TreeShape.Node node : shape.leaves) {
+        List<TreeShape.Node> canopy = new ArrayList<>(shape.leaves.size() + shape.attachments.size());
+        canopy.addAll(shape.leaves);
+        canopy.addAll(shape.attachments);
+        for (TreeShape.Node node : canopy) {
             Block block = world.getBlockAt(node.x, node.y, node.z);
             if (!WorldMutationJournal.sameSnapshot(node.data, block.getBlockData())) continue;
             for (ItemStack item : block.getDrops()) {

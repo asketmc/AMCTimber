@@ -79,7 +79,8 @@ final class Protection {
         Location base = new Location(shape.world, shape.cutX, shape.cutY, shape.cutZ);
         if (!canBreak(player, base, shape.baseMaterial)) return false;
         if (!allBreakable(player, shape, shape.logs)) return false;
-        return allBreakable(player, shape, shape.leaves);
+        if (!allBreakable(player, shape, shape.leaves)) return false;
+        return allBreakable(player, shape, shape.attachments);
     }
 
     private boolean allBreakable(Player player, TreeShape shape, List<TreeShape.Node> nodes) {
