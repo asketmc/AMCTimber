@@ -16,8 +16,9 @@ Before a release:
 
 ## 2. GitHub Release Evidence
 
-The workflow `.github/workflows/release.yml` runs when a GitHub Release is published. It builds the jar
-from the tagged source and uploads:
+The workflow `.github/workflows/release.yml` runs when a GitHub Release is published. Its read-only job
+requires the exact tag commit to be an ancestor of `main`, builds and smokes the jar, and uploads an exact
+candidate. Only after that succeeds does a separate publication job validate, sign, attest, and upload:
 
 - `AMCTimber-x.y.z.jar`
 - `SHA256SUMS.txt`
@@ -38,8 +39,10 @@ gh release create "v${VERSION}" \
   --generate-notes
 ```
 
-The release workflow enforces that the tag, `pom.xml`, and `plugin.yml` versions match. After the
-release workflow finishes, verify assets with `docs/VERIFY_RELEASE.md`.
+The release workflow enforces that the tag points to the checked-out commit on `main` and that the tag,
+`pom.xml`, and `plugin.yml` versions match. Maven custom repositories are restricted to their owned group
+IDs, and the Paper API build input is timestamp-pinned. After the workflow finishes, verify assets with
+`docs/VERIFY_RELEASE.md` using the exact requested tag identity.
 
 ## 3. Modrinth
 

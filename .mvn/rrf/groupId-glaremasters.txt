@@ -1,0 +1,2 @@
+# Towny namespace only.
+com.palmergames.bukkit.towny

@@ -32,11 +32,12 @@
     <mutation.coverage.threshold>80</mutation.coverage.threshold>
     <!-- Compiled against the OLDEST supported API so one jar runs 1.20.6 -> 1.21.x.
          Version-specific symbols (new particles/materials) are resolved by name at runtime. -->
-    <paper.version>1.20.6-R0.1-SNAPSHOT</paper.version>
+    <paper.version>1.20.6-R0.1-20241030.191541-127</paper.version>
   </properties>
 
   <repositories>
     <repository><id>papermc</id><url>https://repo.papermc.io/repository/maven-public/</url></repository>
+    <repository><id>spigot-public</id><url>https://hub.spigotmc.org/nexus/content/repositories/public/</url></repository>
     <repository><id>enginehub</id><url>https://maven.enginehub.org/repo/</url></repository>
     <repository><id>glaremasters</id><url>https://repo.glaremasters.me/repository/towny/</url></repository>
   </repositories>
@@ -47,6 +48,19 @@
       <groupId>io.papermc.paper</groupId>
       <artifactId>paper-api</artifactId>
       <version>${paper.version}</version>
+      <scope>provided</scope>
+      <exclusions>
+        <!-- These server-provided APIs are not needed to compile or test AMCTimber and are not in Central. -->
+        <exclusion><groupId>com.mojang</groupId><artifactId>brigadier</artifactId></exclusion>
+        <exclusion><groupId>net.md-5</groupId><artifactId>bungeecord-chat</artifactId></exclusion>
+      </exclusions>
+    </dependency>
+
+    <!-- Compile-only legacy CommandSender signatures; timestamp-pinned from Spigot's own repository. -->
+    <dependency>
+      <groupId>net.md-5</groupId>
+      <artifactId>bungeecord-chat</artifactId>
+      <version>1.20-R0.3-20240613.110749-52</version>
       <scope>provided</scope>
     </dependency>
 
@@ -70,6 +84,10 @@
       <artifactId>worldguard-bukkit</artifactId>
       <version>7.0.9</version>
       <scope>provided</scope>
+      <exclusions>
+        <!-- Paper API already supplies the Bukkit compile surface. -->
+        <exclusion><groupId>org.spigotmc</groupId><artifactId>spigot-api</artifactId></exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>com.palmergames.bukkit.towny</groupId>

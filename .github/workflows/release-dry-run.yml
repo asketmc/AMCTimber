@@ -25,6 +25,10 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
+      - name: Check release security policy
+        run: |
+          python3 scripts/check-release-security.py
+          python3 scripts/test-release-version.py
       - name: Build jar
         run: mvn -B -ntp clean verify
       - name: Prepare release assets without upload or signing

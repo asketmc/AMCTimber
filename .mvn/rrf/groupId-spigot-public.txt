@@ -1,0 +1,2 @@
+# Maven Resolver 1.x matches exact group IDs.
+net.md-5

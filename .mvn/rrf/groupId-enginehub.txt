@@ -1,0 +1,5 @@
+# Maven Resolver 1.x matches exact group IDs.
+com.sk89q.worldedit
+com.sk89q.worldedit.worldedit-libs
+com.sk89q.worldguard
+com.sk89q.worldguard.worldguard-libs

@@ -203,9 +203,10 @@ mvn -B -ntp clean verify
 # -> target/AMCTimber-<version>.jar
 ```
 
-Requires JDK 21. All dependencies resolve from public repositories (PaperMC, EngineHub, Glaremasters,
-Maven Central). WorldGuard/Towny are `provided` (compile-only) optional integrations and are not shaded
-into the release jar.
+Requires JDK 21 and Maven 3.9 or newer. Project-controlled Maven Resolver filters route each non-Central
+group ID only to PaperMC, Spigot, EngineHub, or Glaremasters and ignore repositories injected by dependency
+POMs. WorldGuard/Towny are `provided` (compile-only) optional integrations and are not shaded into the
+release jar.
 
 ### Tests
 

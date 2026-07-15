@@ -10,45 +10,93 @@ permissions:
   contents: read
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  build-and-smoke:
+    name: Build and smoke (unprivileged)
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
-      contents: write
-      id-token: write
-      attestations: write
+      contents: read
+    outputs:
+      commit: ${{ steps.release-source.outputs.commit }}
+      tag: ${{ steps.release-source.outputs.tag }}
+      version: ${{ steps.release-source.outputs.version }}
     steps:
-      - name: Checkout
+      - name: Checkout exact release tag
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
+          ref: ${{ github.event.release.tag_name }}
       - name: Set up JDK 21
         uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
         with:
           distribution: temurin
           java-version: "21"
           cache: maven
+      - name: Verify tagged source is on main
+        id: release-source
+        env:
+          EXPECTED_COMMIT: ${{ github.sha }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          [[ "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]
+          [[ "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --force --no-tags origin \
+            "+refs/heads/main:refs/remotes/origin/main"
+          git fetch --force origin \
+            "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+          version="$(bash scripts/verify-release-version.sh \
+            "refs/tags/${RELEASE_TAG}" "${EXPECTED_COMMIT}" refs/remotes/origin/main)"
+          printf 'commit=%s\n' "${EXPECTED_COMMIT}" >> "${GITHUB_OUTPUT}"
+          printf 'tag=%s\n' "${RELEASE_TAG}" >> "${GITHUB_OUTPUT}"
+          printf 'version=%s\n' "${version}" >> "${GITHUB_OUTPUT}"
+      - name: Check release security policy
+        run: |
+          python3 scripts/check-release-security.py
+          python3 scripts/test-release-version.py
       - name: Build release jar
         run: mvn -B -ntp clean verify
       - name: Prepare release artifacts
-        run: bash scripts/prepare-release-assets.sh "${GITHUB_REF_NAME#v}" release
+        env:
+          RELEASE_VERSION: ${{ steps.release-source.outputs.version }}
+        run: bash scripts/prepare-release-assets.sh "${RELEASE_VERSION}" release
       - name: Smoke exact release jar on Paper 1.20.6
+        env:
+          RELEASE_VERSION: ${{ steps.release-source.outputs.version }}
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          jar="release/AMCTimber-${version}.jar"
+          jar="release/AMCTimber-${RELEASE_VERSION}.jar"
           bash scripts/smoke-paper.sh 1.20.6 "$jar" release-smoke/1.20.6
           expected="$(sha256sum "$jar" | awk '{print $1}')"
           grep -Fx "plugin_sha256=${expected}" release-smoke/1.20.6/smoke-summary.txt
       - name: Smoke exact release jar on latest stable Paper 1.21
+        env:
+          RELEASE_VERSION: ${{ steps.release-source.outputs.version }}
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          jar="release/AMCTimber-${version}.jar"
+          jar="release/AMCTimber-${RELEASE_VERSION}.jar"
           bash scripts/smoke-paper.sh latest-1.21 "$jar" release-smoke/latest-1.21
           expected="$(sha256sum "$jar" | awk '{print $1}')"
           grep -Fx "plugin_sha256=${expected}" release-smoke/latest-1.21/smoke-summary.txt
+      - name: Assemble exact release candidate
+        env:
+          EXPECTED_COMMIT: ${{ steps.release-source.outputs.commit }}
+          RELEASE_TAG: ${{ steps.release-source.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.release-source.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-candidate
+          cp -R release release-smoke release-candidate/
+          jar_sha256="$(sha256sum "release/AMCTimber-${RELEASE_VERSION}.jar" | awk '{print $1}')"
+          printf '%s\n' \
+            'schema=amctimber-release-candidate-v1' \
+            "repository=${GITHUB_REPOSITORY}" \
+            "tag=${RELEASE_TAG}" \
+            "commit=${EXPECTED_COMMIT}" \
+            "version=${RELEASE_VERSION}" \
+            "jar_sha256=${jar_sha256}" \
+            > release-candidate/release-metadata.txt
       - name: Upload exact-jar runtime smoke evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -56,47 +104,152 @@ jobs:
           name: release-runtime-smoke-${{ github.event.release.tag_name }}
           path: release-smoke/
           if-no-files-found: ignore
+          retention-days: 14
+      - name: Upload release candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-candidate-${{ steps.release-source.outputs.tag }}
+          path: release-candidate/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Sign, attest, and publish (privileged)
+    needs: build-and-smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download unprivileged release candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-candidate-${{ needs.build-and-smoke.outputs.tag }}
+          path: ${{ runner.temp }}/release-candidate
+      - name: Validate candidate, tag, and main ancestry
+        env:
+          EXPECTED_COMMIT: ${{ needs.build-and-smoke.outputs.commit }}
+          EXPECTED_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ github.event.release.id }}
+          RELEASE_TAG: ${{ needs.build-and-smoke.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.build-and-smoke.outputs.version }}
+        run: |
+          set -euo pipefail
+          candidate="${RUNNER_TEMP}/release-candidate"
+          release_dir="${candidate}/release"
+          metadata="${candidate}/release-metadata.txt"
+
+          [[ "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]
+          [[ "${RELEASE_VERSION}" == "${RELEASE_TAG#v}" ]]
+          [[ "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${RELEASE_ID}" =~ ^[0-9]+$ ]]
+          [[ -f "${metadata}" ]]
+
+          jar="AMCTimber-${RELEASE_VERSION}.jar"
+          jar_sha256="$(sha256sum "${release_dir}/${jar}" | awk '{print $1}')"
+          cmp -s "${metadata}" <(printf '%s\n' \
+            'schema=amctimber-release-candidate-v1' \
+            "repository=${EXPECTED_REPOSITORY}" \
+            "tag=${RELEASE_TAG}" \
+            "commit=${EXPECTED_COMMIT}" \
+            "version=${RELEASE_VERSION}" \
+            "jar_sha256=${jar_sha256}")
+
+          unexpected="$(find "${candidate}" -type l -print -quit)"
+          [[ -z "${unexpected}" ]]
+          expected_files=(
+            "${jar}"
+            'SHA256SUMS.txt'
+            'jar-safety-report.txt'
+            'sbom.cdx.json'
+            'sbom.spdx.json'
+          )
+          mapfile -t actual_files < <(
+            find "${release_dir}" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort
+          )
+          diff -u \
+            <(printf '%s\n' "${expected_files[@]}" | LC_ALL=C sort) \
+            <(printf '%s\n' "${actual_files[@]}")
+
+          expected_checksums=(
+            "${jar}"
+            'jar-safety-report.txt'
+            'sbom.cdx.json'
+            'sbom.spdx.json'
+          )
+          mapfile -t actual_checksums < <(
+            awk 'NF == 2 { name=$2; sub(/^\*/, "", name); print name }' \
+              "${release_dir}/SHA256SUMS.txt" | LC_ALL=C sort
+          )
+          diff -u \
+            <(printf '%s\n' "${expected_checksums[@]}" | LC_ALL=C sort) \
+            <(printf '%s\n' "${actual_checksums[@]}")
+          (cd "${release_dir}" && sha256sum -c SHA256SUMS.txt)
+          grep -Fx "plugin_sha256=${jar_sha256}" \
+            "${candidate}/release-smoke/1.20.6/smoke-summary.txt"
+          grep -Fx "plugin_sha256=${jar_sha256}" \
+            "${candidate}/release-smoke/latest-1.21/smoke-summary.txt"
+
+          release_json="$(gh api "repos/${EXPECTED_REPOSITORY}/releases/${RELEASE_ID}")"
+          [[ "$(jq -r .tag_name <<< "${release_json}")" == "${RELEASE_TAG}" ]]
+          [[ "$(jq -r .draft <<< "${release_json}")" == 'false' ]]
+          tag_commit="$(gh api "repos/${EXPECTED_REPOSITORY}/commits/${RELEASE_TAG}" --jq .sha)"
+          [[ "${tag_commit}" == "${EXPECTED_COMMIT}" ]]
+          comparison="$(gh api \
+            "repos/${EXPECTED_REPOSITORY}/compare/${EXPECTED_COMMIT}...main" --jq .status)"
+          [[ "${comparison}" == 'ahead' || "${comparison}" == 'identical' ]]
+
+          mkdir -p validated-release
+          for file in "${expected_files[@]}"; do
+            cp -- "${release_dir}/${file}" "validated-release/${file}"
+          done
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-      - name: Sign release artifacts
+      - name: Sign validated release artifacts
+        env:
+          RELEASE_VERSION: ${{ needs.build-and-smoke.outputs.version }}
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
           artifacts=(
-            "release/AMCTimber-${version}.jar"
-            "release/SHA256SUMS.txt"
-            "release/sbom.spdx.json"
-            "release/sbom.cdx.json"
-            "release/jar-safety-report.txt"
+            "validated-release/AMCTimber-${RELEASE_VERSION}.jar"
+            'validated-release/SHA256SUMS.txt'
+            'validated-release/sbom.spdx.json'
+            'validated-release/sbom.cdx.json'
+            'validated-release/jar-safety-report.txt'
           )
           for artifact in "${artifacts[@]}"; do
-            cosign sign-blob --yes --bundle "${artifact}.sigstore.json" "$artifact"
+            cosign sign-blob --yes --bundle "${artifact}.sigstore.json" "${artifact}"
           done
-      - name: Upload release assets
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          assets=(
-            "release/AMCTimber-${version}.jar"
-            "release/AMCTimber-${version}.jar.sigstore.json"
-            "release/SHA256SUMS.txt"
-            "release/SHA256SUMS.txt.sigstore.json"
-            "release/sbom.spdx.json"
-            "release/sbom.spdx.json.sigstore.json"
-            "release/sbom.cdx.json"
-            "release/sbom.cdx.json.sigstore.json"
-            "release/jar-safety-report.txt"
-            "release/jar-safety-report.txt.sigstore.json"
-          )
-          gh release upload "${GITHUB_REF_NAME}" "${assets[@]}"
-      - name: Attest release artifacts
+      - name: Attest validated release artifacts
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-path: |
-            release/AMCTimber-*.jar
-            release/SHA256SUMS.txt
-            release/sbom.spdx.json
-            release/sbom.cdx.json
-            release/jar-safety-report.txt
+            validated-release/AMCTimber-*.jar
+            validated-release/SHA256SUMS.txt
+            validated-release/sbom.spdx.json
+            validated-release/sbom.cdx.json
+            validated-release/jar-safety-report.txt
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.build-and-smoke.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.build-and-smoke.outputs.version }}
+        run: |
+          set -euo pipefail
+          assets=(
+            "validated-release/AMCTimber-${RELEASE_VERSION}.jar"
+            "validated-release/AMCTimber-${RELEASE_VERSION}.jar.sigstore.json"
+            'validated-release/SHA256SUMS.txt'
+            'validated-release/SHA256SUMS.txt.sigstore.json'
+            'validated-release/sbom.spdx.json'
+            'validated-release/sbom.spdx.json.sigstore.json'
+            'validated-release/sbom.cdx.json'
+            'validated-release/sbom.cdx.json.sigstore.json'
+            'validated-release/jar-safety-report.txt'
+            'validated-release/jar-safety-report.txt.sigstore.json'
+          )
+          gh release upload "${RELEASE_TAG}" "${assets[@]}"

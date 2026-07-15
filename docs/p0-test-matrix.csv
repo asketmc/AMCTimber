@@ -5,7 +5,7 @@ P0-003,protected region damage,ProtectionTest default deny-on-error and decision
 P0-004,partial mutation / duplicate completion / lost recovery yield,FellLifecycleTest; WorldMutationJournalTest; YieldLedgerTest; PendingYieldTest; PendingYieldFileTest; BlockKeyTest; EntityBudgetTest; live plugin interaction absent,unit + P0 tagged tests + planned runtime failure injection,partial
 P0-005,config DoS,TimberConfigTest.expensiveSettingsHaveUpperBounds; TimberConfigTest.lowerBoundsProtectTinyOrNegativeExpensiveSettings,unit + P0 tagged tests + JaCoCo + PIT,implemented
 P0-006,native/script/nested jar pattern,scripts/check-release-jar.sh heuristic; passing is not a safety guarantee,CI + Release Dry Run + Reviewer Evidence,implemented
-P0-007,release version mismatch,scripts/verify-release-version.sh,Release Dry Run + Release Security,implemented
+P0-007,release version or source mismatch,scripts/verify-release-version.sh; scripts/check-release-security.py,Release Dry Run + Release Security,implemented
 P0-008,process exec/native load/classloader/network source patterns,scripts/check-runtime-surface.sh; .semgrep.yml,Reviewer Evidence + Semgrep,implemented
 P0-009,XP bridge runs when disabled,XpBridgeTest.grantDoesNotTouchPlayerOrSchedulerWhenDisabled; TimberConfigTest.xpBridgeCanBeDisabledInConfig,unit + P0 tagged tests,implemented
 P0-010,Paper boundary-version startup/selftest/shutdown regression,Paper Runtime Smoke on 1.20.6 and latest stable 1.21 with exact-build logs,Paper Runtime Smoke,implemented
