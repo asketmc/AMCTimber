@@ -207,8 +207,12 @@ final class TreeScanner {
      * Returns a {@link TreeShape} whose {@code isTree} flag is the go/no-go for felling.
      */
     TreeShape scan(Block broken, double dirX, double dirZ) {
+        return scan(broken, dirX, dirZ, FellAttemptBudget.from(cfg));
+    }
+
+    TreeShape scan(Block broken, double dirX, double dirZ, FellAttemptBudget budget) {
         World w = broken.getWorld();
-        ScanContext scan = new ScanContext(w, cfg.maxScanReads);
+        ScanContext scan = new ScanContext(w, budget);
         final boolean stump = cfg.leaveStump;
         final String species = speciesOf(broken.getType());
         final boolean sameSpecies = cfg.sameSpeciesOnly;
@@ -217,6 +221,7 @@ final class TreeScanner {
         int ox = broken.getX(), oy = broken.getY(), oz = broken.getZ();
         if (!stump) {
             while (true) {
+                if (!budget.checkpoint()) break;
                 int belowY = oy - 1;
                 if (belowY < w.getMinHeight()) break;
                 Material below = scan.material(ox, belowY, oz);
@@ -261,6 +266,7 @@ final class TreeScanner {
         int minY = Integer.MAX_VALUE, maxY = Integer.MIN_VALUE;
         boolean logLimitHit = false;
         while (!q.isEmpty()) {
+            if (!budget.checkpoint()) break;
             if (logs.size() >= cfg.maxTreeBlocks) {
                 logLimitHit = true;
                 break;
@@ -304,6 +310,7 @@ final class TreeScanner {
         Set<Long> leafSeen = new HashSet<>();
         Deque<int[]> lq = new ArrayDeque<>();
         for (TreeShape.Node ln : logs) {
+            if (!budget.checkpoint()) break;
             for (int dx = -1; dx <= 1; dx++)
                 for (int dy = -1; dy <= 1; dy++)
                     for (int dz = -1; dz <= 1; dz++) {
@@ -313,6 +320,7 @@ final class TreeScanner {
                     }
         }
         while (!lq.isEmpty() && leaves.size() < leafBudget) {
+            if (!budget.checkpoint()) break;
             int[] c = lq.poll();
             BlockData d = scan.data(c[0], c[1], c[2]);
             if (d == null || !leafMatches(d.getMaterial(), species, sameSpecies)) continue;
@@ -399,6 +407,7 @@ final class TreeScanner {
         sources.addAll(leaves);
 
         for (TreeShape.Node source : sources) {
+            if (!scan.checkpoint()) break;
             for (int[] face : FACE_OFFSETS) {
                 int x = source.x + face[0], y = source.y + face[1], z = source.z + face[2];
                 long blockKey = key(x, y, z);
@@ -415,6 +424,7 @@ final class TreeScanner {
 
         int directCount = nodes.size();
         for (int index = 0; index < directCount; index++) {
+            if (!scan.checkpoint()) break;
             TreeShape.Node seed = nodes.get(index);
             String name = seed.data.getMaterial().name();
             if (!isVerticalAttachmentName(name)) continue;
@@ -447,6 +457,7 @@ final class TreeScanner {
         trunk.addAll(logs);
         trunk.addAll(stumps);
         for (TreeShape.Node n : trunk) {
+            if (!scan.checkpoint()) return true;
             for (int dx = -1; dx <= 1; dx++)
                 for (int dy = -1; dy <= 1; dy++)
                     for (int dz = -1; dz <= 1; dz++) {
@@ -494,15 +505,21 @@ final class TreeScanner {
     /** Cached, bounded access to already-loaded chunks only. */
     private static final class ScanContext {
         private final World world;
-        private final int maxReads;
+        private final FellAttemptBudget budget;
         private final Map<Long, BlockData> cache = new HashMap<>();
         private final BlockData air = Material.AIR.createBlockData();
-        private int reads;
         private String blockedReason;
 
-        private ScanContext(World world, int maxReads) {
+        private ScanContext(World world, FellAttemptBudget budget) {
             this.world = world;
-            this.maxReads = maxReads;
+            this.budget = budget;
+        }
+
+        private boolean checkpoint() {
+            if (blockedReason != null) return false;
+            if (budget.checkpoint()) return true;
+            blockedReason = budget.reason();
+            return false;
         }
 
         private Material material(int x, int y, int z) {
@@ -511,7 +528,7 @@ final class TreeScanner {
         }
 
         private BlockData data(int x, int y, int z) {
-            if (blockedReason != null) return null;
+            if (!checkpoint()) return null;
             if (y < world.getMinHeight() || y >= world.getMaxHeight()) return air;
             long key = key(x, y, z);
             BlockData cached = cache.get(key);
@@ -520,12 +537,12 @@ final class TreeScanner {
                 blockedReason = "unloaded-chunk-boundary";
                 return null;
             }
-            if (reads >= maxReads) {
-                blockedReason = "scan-read-budget";
+            if (!budget.takeRead()) {
+                blockedReason = budget.reason();
                 return null;
             }
-            reads++;
             BlockData loaded = world.getBlockAt(x, y, z).getBlockData();
+            if (!checkpoint()) return null;
             cache.put(key, loaded);
             return loaded;
         }

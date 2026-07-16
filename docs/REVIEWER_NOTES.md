@@ -6,19 +6,26 @@ notes are written for marketplace moderators and server administrators who want 
 ## Runtime Behavior
 
 - Listens to block break and interaction events.
-- Detects natural trees with bounded scanning and configurable caps. The player-build guard is a
+- Detects natural trees with global/per-player admission, elapsed/read caps, and configurable limits. The player-build guard is a
   conservative heuristic, not a guarantee for every custom structure.
 - Spawns non-persistent Display/Interaction entities for the falling-tree visual.
 - Removes or replaces only detected tree/trunk blocks.
 - Stores temporary downed-trunk state in memory only.
-- Respects optional WorldGuard and Towny checks when those plugins are installed; hook errors deny by
-  default unless an operator explicitly selects the allow policy.
+- Uses operation-specific WorldGuard/Towny mappings for source breaks, destination entities, trunk use,
+  item delivery, and combat; wilderness is checked and hook errors deny unless explicitly configured otherwise.
 - Uses an explicit felling lifecycle, immutable per-fell config snapshots, world-aware active-cut keys,
-  and one global entity budget across falls, landed trunks, and pending recovery yield.
+  one global resident-entity budget, and an independent durable-recovery budget.
+- Prepares block breaks without mutation, consumes final ordinary-priority cancellation/drop policy before
+  commit, and attributes crush damage to the feller for downstream combat-policy cancellation.
+- Uses one global per-tick work governor for atomic launch admission, display phases, crush work, and
+  round-robin log/canopy item delivery. Unloaded recovery does not reserve a live session.
 - Preflights snapshotted block data and uses compensating rollback for partial mutation without
   overwriting non-air blocks changed by another actor.
 - Retains rejected log delivery in the trunk or a bounded retry queue. Queue state and planned-shutdown
-  transfers use the validated, atomically replaced local `amctimber.pending-yield.v1` file. This is not an
+  transfers use the validated, atomically replaced local `amctimber.pending-yield.v2` file (v1 migrates).
+  New entries retain their actor for delivery-time item-drop authorization; actorless v1 entries stay
+  dormant while protection is active. Terminal transfers remain non-deliverable until their staged journal
+  record is atomically checkpointed. This is not an
   exactly-once transaction with world item spawning and does not persist every in-world trunk across a
   process or host crash.
 - Keeps deterministic QA hooks disabled by default and gates them with the separate `amctimber.qa`
@@ -76,6 +83,10 @@ signature metadata, and `plugin.yml` count patterns. A pass does not guarantee t
 The runtime-surface gate reports and fails on configured process execution, native library loading,
 dynamic classloading, hidden reflection API, and runtime network API patterns in `src/main/java`. Review
 its rules and allowlists when interpreting the result.
+
+The focused runtime-security invariant gate also checks the audited WorldGuard/Towny operation mapping,
+drop/cancellation ordering, landing authorization ordering, attributed damage sink, and single paced item
+delivery choke point. It is deliberately narrow and does not replace live integration testing.
 
 These checks provide verification evidence. They do not replace manual code review or a formal security
 audit.

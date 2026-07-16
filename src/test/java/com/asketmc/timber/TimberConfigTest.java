@@ -108,6 +108,13 @@ class TimberConfigTest {
         yml.set("animation.max-total-entities", 1_000_000);
         yml.set("detection.max-scan-reads", 1_000_000);
         yml.set("trunk.despawn-seconds", 1_000_000);
+        yml.set("detection.max-attempt-micros", 1_000_000);
+        yml.set("detection.max-protection-hook-calls", 1_000_000);
+        yml.set("runtime-work.launch-block-ops-per-tick", 1_000_000);
+        yml.set("runtime-work.entity-operations-per-tick", 1_000_000);
+        yml.set("runtime-work.max-queued-entity-operations", 1_000_000);
+        yml.set("runtime-work.yield-delivery-steps-per-tick", 1_000_000);
+        yml.set("runtime-work.max-recovery-records", 1_000_000);
 
         TimberConfig capped = new TimberConfig(yml);
 
@@ -118,6 +125,13 @@ class TimberConfigTest {
         assertEquals(TimberConfig.MAX_TOTAL_ENTITIES_CAP, capped.maxTotalEntities);
         assertEquals(TimberConfig.MAX_SCAN_READS_CAP, capped.maxScanReads);
         assertEquals(TimberConfig.MAX_DESPAWN_SECONDS_CAP, capped.despawnSeconds);
+        assertEquals(TimberConfig.MAX_ATTEMPT_MICROS_CAP, capped.maxAttemptMicros);
+        assertEquals(TimberConfig.MAX_PROTECTION_HOOK_CALLS_CAP, capped.maxProtectionHookCalls);
+        assertEquals(TimberConfig.MAX_LAUNCH_BLOCK_OPS_CAP, capped.launchBlockOpsPerTick);
+        assertEquals(TimberConfig.MAX_ENTITY_OPERATIONS_CAP, capped.entityOperationsPerTick);
+        assertEquals(TimberConfig.MAX_QUEUED_ENTITY_OPERATIONS_CAP, capped.maxQueuedEntityOperations);
+        assertEquals(TimberConfig.MAX_YIELD_DELIVERY_STEPS_CAP, capped.yieldDeliveryStepsPerTick);
+        assertEquals(TimberConfig.MAX_RECOVERY_RECORDS_CAP, capped.maxRecoveryRecords);
     }
 
     @Test

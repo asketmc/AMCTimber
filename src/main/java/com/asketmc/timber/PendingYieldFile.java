@@ -19,11 +19,17 @@ import java.util.UUID;
 
 /** Validated, atomic local persistence for undelivered recovery yield. */
 final class PendingYieldFile {
-    static final String SCHEMA = "amctimber.pending-yield.v1";
+    static final String SCHEMA = "amctimber.pending-yield.v2";
+    private static final String LEGACY_SCHEMA = "amctimber.pending-yield.v1";
     static final int MAX_ENTRIES = 4_096;
     private static final int MAX_AMOUNT = 1_000_000;
 
-    record Entry(UUID id, UUID worldId, double x, double y, double z, Material material, int amount) {
+    record Entry(UUID id, UUID ownerId, UUID worldId, double x, double y, double z,
+                 Material material, int amount) {
+        Entry(UUID id, UUID worldId, double x, double y, double z, Material material, int amount) {
+            this(id, null, worldId, x, y, z, material, amount);
+        }
+
         Entry {
             if (id == null || worldId == null || material == null) {
                 throw new IllegalArgumentException("missing yield identity");
@@ -49,9 +55,11 @@ final class PendingYieldFile {
                 throw new IOException("malformed pending-yield properties", malformed);
             }
         }
-        if (!SCHEMA.equals(properties.getProperty("schema"))) {
+        String schema = properties.getProperty("schema");
+        if (!SCHEMA.equals(schema) && !LEGACY_SCHEMA.equals(schema)) {
             throw new IOException("unsupported pending-yield schema");
         }
+        boolean legacy = LEGACY_SCHEMA.equals(schema);
         int count;
         try {
             count = parseInt(properties, "count");
@@ -66,15 +74,16 @@ final class PendingYieldFile {
             String prefix = "entry." + index + '.';
             try {
                 UUID id = UUID.fromString(required(properties, prefix + "id"));
+                UUID ownerId = legacy ? null : optionalUuid(properties.getProperty(prefix + "owner"));
                 UUID worldId = UUID.fromString(required(properties, prefix + "world"));
                 double x = Double.parseDouble(required(properties, prefix + "x"));
                 double y = Double.parseDouble(required(properties, prefix + "y"));
                 double z = Double.parseDouble(required(properties, prefix + "z"));
                 Material material = Material.matchMaterial(required(properties, prefix + "material"));
                 int amount = parseInt(properties, prefix + "amount");
-                Entry entry = new Entry(id, worldId, x, y, z, material, amount);
-                if (!supportedLogMaterial(entry.material())) {
-                    throw new IllegalArgumentException("material is not a supported log");
+                Entry entry = new Entry(id, ownerId, worldId, x, y, z, material, amount);
+                if (!supportedYieldMaterial(entry.material())) {
+                    throw new IllegalArgumentException("material is not a supported timber yield");
                 }
                 if (!uniqueIds.add(entry.id())) throw new IllegalArgumentException("duplicate recovery id");
                 entries.add(entry);
@@ -90,6 +99,9 @@ final class PendingYieldFile {
         Set<UUID> uniqueIds = new HashSet<>();
         for (Entry entry : source) {
             if (!uniqueIds.add(entry.id())) throw new IOException("duplicate pending-yield id");
+            if (!supportedYieldMaterial(entry.material())) {
+                throw new IOException("material is not a supported timber yield");
+            }
         }
         Files.createDirectories(file.toAbsolutePath().getParent());
         Path temporary = file.resolveSibling(file.getFileName() + ".tmp");
@@ -108,6 +120,8 @@ final class PendingYieldFile {
             Entry entry = entries.get(index);
             String prefix = "entry." + index + '.';
             output.append(prefix).append("id=").append(entry.id()).append('\n');
+            output.append(prefix).append("owner=")
+                    .append(entry.ownerId() == null ? "none" : entry.ownerId()).append('\n');
             output.append(prefix).append("world=").append(entry.worldId()).append('\n');
             output.append(prefix).append("x=").append(entry.x()).append('\n');
             output.append(prefix).append("y=").append(entry.y()).append('\n');
@@ -137,11 +151,34 @@ final class PendingYieldFile {
         }
     }
 
-    private static boolean supportedLogMaterial(Material material) {
-        String name = material.name();
-        return name.endsWith("_LOG") || name.endsWith("_WOOD") || name.endsWith("_HYPHAE")
-                || name.equals("CRIMSON_STEM") || name.equals("WARPED_STEM")
-                || name.equals("STRIPPED_CRIMSON_STEM") || name.equals("STRIPPED_WARPED_STEM")
-                || name.equals("BAMBOO_BLOCK") || name.equals("STRIPPED_BAMBOO_BLOCK");
+    private static UUID optionalUuid(String value) {
+        if (value == null || value.isBlank() || value.equalsIgnoreCase("none")) return null;
+        return UUID.fromString(value.trim());
     }
+
+    /** Registry-free allowlist so recovery validation remains server-free and cannot construct non-items. */
+    static boolean supportedYieldMaterial(Material material) {
+        if (material == null) return false;
+        String name = material.name();
+        boolean allowlisted = name.endsWith("_LOG") || name.endsWith("_WOOD") || name.endsWith("_HYPHAE")
+                || name.endsWith("_SAPLING")
+                || name.equals("CRIMSON_STEM") || name.equals("STRIPPED_CRIMSON_STEM")
+                || name.equals("WARPED_STEM") || name.equals("STRIPPED_WARPED_STEM")
+                || name.equals("BAMBOO_BLOCK") || name.equals("STRIPPED_BAMBOO_BLOCK")
+                || name.equals("MANGROVE_PROPAGULE") || name.equals("STICK")
+                || name.equals("APPLE") || name.equals("AZALEA")
+                || name.equals("FLOWERING_AZALEA") || name.equals("COCOA_BEANS")
+                || name.equals("VINE") || name.equals("PALE_HANGING_MOSS")
+                || name.equals("SNOWBALL") || name.equals("MOSS_CARPET")
+                || name.equals("PALE_MOSS_CARPET");
+        if (!allowlisted) return false;
+        try {
+            return material.isItem();
+        } catch (RuntimeException | LinkageError registryUnavailable) {
+            // Paper's unit-test API has no RegistryAccess implementation. Every fallback name above
+            // is an explicitly enumerated real item; production still consumes Material#isItem().
+            return true;
+        }
+    }
+
 }

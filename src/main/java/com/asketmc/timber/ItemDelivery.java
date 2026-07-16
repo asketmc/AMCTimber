@@ -12,7 +12,8 @@ final class ItemDelivery {
     static int tryDeliver(World world, Location location, ItemStack stack) {
         int requested = stack.getAmount();
         try {
-            Item dropped = world.dropItemNaturally(location, stack);
+            // The sink is pre-authorized as one exact cell; random natural offsets could cross its boundary.
+            Item dropped = world.dropItem(location, stack);
             if (dropped != null && dropped.isValid() && dropped.isInWorld()) return requested;
         } catch (RuntimeException | LinkageError ignored) {
             // The caller retains its ledger and decides whether to retry interactively or in the queue.

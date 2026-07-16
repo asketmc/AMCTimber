@@ -5,11 +5,20 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-07-16
+
 ### Security
 
 - Split release build/runtime smoke from signing and publication permissions, require release tags to
   resolve to commits on `main`, timestamp-pin the Paper API input, scope custom Maven repositories to
   owned group IDs, and document exact-tag Sigstore verification.
+- Correct WorldGuard block-break and Towny wilderness authorization, pre-authorize landing destinations,
+  preserve final cancellation/no-drop policy before commit, and attribute crush damage to the feller.
+- Add global/per-player scan admission, elapsed/read/hook-call limits, atomic launch work admission,
+  paced display/crush phases, and a CI regression gate for the audited runtime boundaries.
+- Route log and canopy rewards through one fair per-tick durable dispatcher, with recovery capacity
+  separated from live display/session capacity so unloaded records cannot starve normal gameplay; legacy
+  actorless records fail closed under active protection and terminal journal retries retain ownership.
 
 ## [1.0.7] - 2026-07-10
 
@@ -150,6 +159,7 @@ First public release, extracted and generalised from the internal asketmc build.
 - `/amctimber selftest`.
 - JUnit 5 server-free unit test suite.
 
+[1.0.8]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.8
 [1.0.7]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.7
 [1.0.6]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.6
 [1.0.5]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.5

@@ -52,7 +52,7 @@ runtime libraries.
 - **i18n** — English + Russian out of the box, MiniMessage-formatted, fully editable; item names localise
   on each client automatically.
 - **Bounded runtime** — every fell has an explicit lifecycle, world-aware duplicate key, immutable config
-  snapshot, and a reservation in one global entity budget shared by falls, trunks, and pending recovery.
+  snapshot, and reservations in separate live-entity, queued-work, and durable-recovery budgets.
 - **Ephemeral entities** — spawned entities are non-persistent, tagged, capped, swept, and removed during
   planned shutdown recovery. Startup cleanup handles tagged leftovers after an unclean stop.
 
@@ -154,6 +154,17 @@ xp:
 ```yaml
 detection:
   protection-error-policy: deny   # deny | allow
+  max-attempt-micros: 2500
+  max-protection-hook-calls: 4096
+  max-attempts-per-tick: 4
+  attempt-cooldown-ticks: 4
+
+runtime-work:
+  launch-block-ops-per-tick: 10000
+  entity-operations-per-tick: 1024
+  crush-queries-per-tick: 16
+  yield-delivery-steps-per-tick: 8
+  max-recovery-records: 4096
 
 qa:
   commands-enabled: false
@@ -167,19 +178,34 @@ and **per-locale messages** (`messages.yml`, MiniMessage) are all configurable t
 - A fell moves through explicit prepared, falling, landing, landed, completion, expiry, or failure states.
 - Tree blocks are checked against the scan snapshot before mutation. Partial removal uses a compensating
   rollback journal that restores only still-empty positions, so newer world changes are not overwritten.
+- The HIGHEST block-break handler prepares a read-only plan. AMCTimber consumes cancellation and no-drop
+  policy at MONITOR before committing, so later ordinary-priority policy listeners can veto the fell
+  without secondary world, entity, durability, or synthetic-yield side effects.
 - Each accepted fell keeps the immutable config snapshot it started with; reloads affect new work only.
 - Active-cut identity includes the world UUID and block coordinates, avoiding cross-world key collisions.
-- One global entity budget reserves the planned peak for active falls and landed trunks before mutation.
-- WorldGuard/Towny hook errors deny the operation by default. Operators may explicitly choose `allow`.
-- Rejected log-item delivery keeps a completed trunk available for another chop, or moves abnormal
-  in-flight recovery into a bounded five-second retry queue without acknowledging rejected stacks.
-- A completed trunk awaiting delivery does not time out; if its entities become invalid, its ledger moves
-  into the same bounded queue. The reservation remains held, so persistent rejection stops new fells at
-  the configured global cap instead of growing recovery state without limit. The validated journal also
-  has a 4096-entry hard ceiling, with headroom reserved before a new fell starts.
+- Scan admission is limited globally and per player. Every scan/protection stage also has a wall-clock,
+  live-read, and external-hook-call budget; exhaustion declines special felling and preserves vanilla
+  single-block behavior.
+- One global resident-entity budget and a separate per-tick work governor reserve atomic launch work
+  before mutation, then pace transform/landing phases and crush queries/targets across sessions.
+  The elapsed crush budget is checked between dispatcher units; Paper exposes each spatial query as one
+  non-preemptible main-thread operation, so entity-density limits remain an operator/server responsibility.
+- WorldGuard maps source break, landing, trunk interaction, item-drop, PvP, and mob-damage operations to
+  `BLOCK_BREAK`, `BUILD`, `INTERACT`, `ITEM_DROP`, `PVP`, and `DAMAGE_ANIMALS`. Towny independently maps
+  them to `DESTROY`, `BUILD`, `SWITCH`, and `ITEM_USE`, including wilderness. Hook errors deny by default.
+- Conservative transformed display cubes, complete interaction hitboxes, and deterministic item sinks are
+  authorized before source removal and rechecked at landing, trunk use, and delivery. Crush damage is
+  attributed to the felling player so cancellable combat-policy listeners see the actual actor and target.
+- All log and canopy item creation shares a round-robin per-tick stack budget. Rejected or unloaded
+  deliveries retain their exact ledger without acknowledging a stack that did not enter the world.
+- Durable recovery uses its own configurable, hard-capped capacity instead of holding a live display/session
+  reservation; restored records survive a lower reload limit while new reservations fail closed.
 - Pending queue entries are atomically stored in
-  `plugins/AMCTimber/pending-yields.properties` (`amctimber.pending-yield.v1`). Planned shutdown moves
-  remaining in-flight/trunk yield into that file before cleanup; startup validates and resumes it.
+  `plugins/AMCTimber/pending-yields.properties` (`amctimber.pending-yield.v2`, with v1 migration). New records
+  retain the actor UUID so item-drop authorization can be rechecked. Actorless v1 records remain dormant
+  while a protection integration is active instead of receiving implicit authorization. Terminal handoffs
+  are withheld from delivery until an atomic journal checkpoint succeeds; planned shutdown stages remaining
+  in-flight/trunk yield before cleanup, and startup validates and resumes durable records.
 - This local journal does not make the world-item spawn plus file acknowledgement one atomic transaction,
   and an in-world trunk that disappears in a process/host crash may still be lost. It is recovery evidence,
   not an exactly-once durability guarantee.
@@ -216,8 +242,9 @@ mvn -B -ntp clean verify
 
 Automated layers:
 - **Unit tests** (`src/test/java`, JUnit 5) — server-free checks over the pure logic: yield/XP/hits/
-  durability/crush maths, axe-tier gating, species & leaf matching, fall direction, topple transforms,
-  trunk shrink and the progress bar. Fast, and run on every push by CI (`mvn verify` runs them).
+  durability/crush maths, axe-tier gating, species and leaf matching, fall direction, topple transforms,
+  admission/deadline budgets, work pacing, recovery ownership, landing footprint, trunk shrink and the
+  progress bar. Fast, and run on every push by CI (`mvn verify` runs them).
 - **P0 tagged tests** — selected highest-risk server-free tests run again in the `verify` phase and are
   mapped in [docs/P0_TEST_MATRIX.md](docs/P0_TEST_MATRIX.md).
 - **Coverage and mutation gates** — JaCoCo reports full project coverage and enforces >=80% line /
@@ -228,6 +255,9 @@ Automated layers:
   registry-backed paths (Tag-based log/leaf/axe detection) that require a running server. The committed
   `Paper Runtime Smoke` workflow runs startup, selftest, and clean shutdown on Paper 1.20.6 and the latest
   stable 1.21 release; it is not Purpur/Pufferfish or gameplay-path evidence.
+- **Audited boundary regression gate** — `scripts/check-runtime-security.py` fails CI if the concrete
+  WorldGuard/Towny operation mapping, no-drop/final-cancellation handoff, attributed crush damage,
+  landing authorization ordering, or paced item-delivery choke point regresses.
 
 ### Supply-chain checks
 

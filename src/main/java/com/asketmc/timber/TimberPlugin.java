@@ -18,6 +18,10 @@ public final class TimberPlugin extends JavaPlugin {
     private Protection protection;
     private TreeScanner scanner;
     private EntityBudget budget;
+    private RecoveryBudget recoveryBudget;
+    private FellAttemptAdmission attemptAdmission;
+    private RuntimeWorkLimiter workLimiter;
+    private CrushDispatcher crushDispatcher;
     private FellRuntime runtime;
     private FellJobManager fellManager;
     private FelledTrunkStore store;
@@ -27,9 +31,10 @@ public final class TimberPlugin extends JavaPlugin {
     public void onEnable() {
         saveDefaultConfig();
         this.sched = new Sched(this);
-        this.store = new FelledTrunkStore(getLogger());
+        this.recoveryBudget = new RecoveryBudget(PendingYieldFile.MAX_ENTRIES);
+        this.store = new FelledTrunkStore(getLogger(), recoveryBudget);
         applyConfig();
-        store.initializeRecovery(getDataFolder().toPath(), budget);
+        store.initializeRecovery(getDataFolder().toPath());
         this.fellManager = new FellJobManager(budget);
 
         store.purgeTagged("start");
@@ -40,6 +45,10 @@ public final class TimberPlugin extends JavaPlugin {
         if (command == null) throw new IllegalStateException("amctimber command is missing from plugin.yml");
         command.setExecutor(new AdminCommand(this));
 
+        sched.timer(attemptAdmission::beginTick, 1L, 1L);
+        sched.timer(workLimiter::beginTick, 1L, 1L);
+        sched.timer(crushDispatcher::tick, 1L, 1L);
+        sched.timer(store::tickYieldDelivery, 1L, 1L);
         sched.timer(store::sweep, 20L, 20L);
         String hooks = protection.hooks();
         debug.info("AMCTimber v" + getPluginMeta().getVersion() + " enabled - felling "
@@ -49,6 +58,7 @@ public final class TimberPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (crushDispatcher != null) crushDispatcher.clear();
         try {
             if (fellManager != null) fellManager.shutdown();
         } finally {
@@ -70,12 +80,27 @@ public final class TimberPlugin extends JavaPlugin {
         Protection nextProtection = new Protection(
                 nextConfig.respectBuilds, nextConfig.protectionFailClosed, nextDebug::warn);
         nextProtection.init();
+        recoveryBudget.updateLimit(nextConfig.maxRecoveryRecords);
+        store.updateProtection(nextProtection);
         TreeScanner nextScanner = new TreeScanner(nextConfig);
         EntityBudget nextBudget = budget == null
                 ? new EntityBudget(nextConfig.maxLiveTrunks, nextConfig.maxTotalEntities) : budget;
         nextBudget.updateLimits(nextConfig.maxLiveTrunks, nextConfig.maxTotalEntities);
+        FellAttemptAdmission nextAttemptAdmission = attemptAdmission == null
+                ? new FellAttemptAdmission(nextConfig.maxScanAttemptsPerTick,
+                nextConfig.scanAttemptCooldownTicks) : attemptAdmission;
+        nextAttemptAdmission.updateLimits(nextConfig.maxScanAttemptsPerTick,
+                nextConfig.scanAttemptCooldownTicks);
+        RuntimeWorkLimiter nextWorkLimiter = workLimiter == null
+                ? new RuntimeWorkLimiter(nextConfig) : workLimiter;
+        nextWorkLimiter.updateLimits(nextConfig);
+        CrushDispatcher nextCrushDispatcher = crushDispatcher == null
+                ? new CrushDispatcher(nextWorkLimiter, nextConfig) : crushDispatcher;
+        nextCrushDispatcher.updateLimits(nextConfig);
+        store.updateDeliveryLimit(nextConfig.yieldDeliveryStepsPerTick);
         FellRuntime nextRuntime = new FellRuntime(nextConfig, sched, nextDebug, store,
-                nextEffects, nextXpBridge, nextMessages, nextProtection);
+                nextEffects, nextXpBridge, nextMessages, nextProtection,
+                nextWorkLimiter, nextCrushDispatcher, recoveryBudget);
 
         // Publish one fully built generation. Existing fells retain their prior generation references.
         this.cfg = nextConfig;
@@ -86,6 +111,9 @@ public final class TimberPlugin extends JavaPlugin {
         this.protection = nextProtection;
         this.scanner = nextScanner;
         this.budget = nextBudget;
+        this.attemptAdmission = nextAttemptAdmission;
+        this.workLimiter = nextWorkLimiter;
+        this.crushDispatcher = nextCrushDispatcher;
         this.runtime = nextRuntime;
     }
 
@@ -106,6 +134,9 @@ public final class TimberPlugin extends JavaPlugin {
     Protection protection() { return protection; }
     TreeScanner scanner() { return scanner; }
     EntityBudget budget() { return budget; }
+    RecoveryBudget recoveryBudget() { return recoveryBudget; }
+    FellAttemptAdmission attemptAdmission() { return attemptAdmission; }
+    RuntimeWorkLimiter workLimiter() { return workLimiter; }
     FellRuntime runtime() { return runtime; }
     FellJobManager fellManager() { return fellManager; }
     FelledTrunkStore store() { return store; }

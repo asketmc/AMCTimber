@@ -14,6 +14,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PendingYieldFileTest {
     @TempDir
@@ -24,10 +25,16 @@ class PendingYieldFileTest {
     void roundTripsValidatedRecoveryStateAndDeletesEmptyState() throws IOException {
         Path file = tempDir.resolve("pending-yields.properties");
         PendingYieldFile.Entry entry = new PendingYieldFile.Entry(
-                UUID.randomUUID(), UUID.randomUUID(), 12.5, 64, -7.25, Material.OAK_LOG, 130);
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                12.5, 64, -7.25, Material.OAK_LOG, 130);
+        PendingYieldFile.Entry leaf = new PendingYieldFile.Entry(
+                UUID.randomUUID(), UUID.randomUUID(), 12.5, 64, -7.25, Material.OAK_SAPLING, 3);
+        PendingYieldFile.Entry attachment = new PendingYieldFile.Entry(
+                UUID.randomUUID(), UUID.randomUUID(), 12.5, 64, -7.25, Material.MOSS_CARPET, 2);
 
-        PendingYieldFile.write(file, List.of(entry));
-        assertEquals(List.of(entry), PendingYieldFile.read(file));
+        PendingYieldFile.write(file, List.of(entry, leaf, attachment));
+        assertEquals(java.util.Set.of(entry, leaf, attachment),
+                new java.util.HashSet<>(PendingYieldFile.read(file)));
         PendingYieldFile.write(file, List.of());
         assertFalse(Files.exists(file));
     }
@@ -47,5 +54,13 @@ class PendingYieldFileTest {
 
         Files.writeString(file, "schema=" + PendingYieldFile.SCHEMA + "\ncount=not-a-number\n");
         assertThrows(IOException.class, () -> PendingYieldFile.read(file));
+    }
+
+    @Test
+    void yieldAllowlistRequiresRealItemsAndOnlyNetherStemBlocks() {
+        assertTrue(PendingYieldFile.supportedYieldMaterial(Material.CRIMSON_STEM));
+        assertTrue(PendingYieldFile.supportedYieldMaterial(Material.STRIPPED_WARPED_STEM));
+        assertFalse(PendingYieldFile.supportedYieldMaterial(Material.MELON_STEM));
+        assertFalse(PendingYieldFile.supportedYieldMaterial(Material.ATTACHED_PUMPKIN_STEM));
     }
 }
