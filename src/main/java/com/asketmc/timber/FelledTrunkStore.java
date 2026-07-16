@@ -50,7 +50,7 @@ final class FelledTrunkStore {
         this.protection = protection;
     }
 
-    void initializeRecovery(Path dataDirectory, EntityBudget ignoredLiveBudget) {
+    void initializeRecovery(Path dataDirectory) {
         this.recoveryFile = dataDirectory.resolve("pending-yields.properties");
         try {
             dormantYields.addAll(PendingYieldFile.read(recoveryFile));

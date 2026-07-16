@@ -280,8 +280,7 @@ final class FellSession {
                 }
                 return CrushDispatcher.Step.PROGRESS;
             }
-            if (distance > span || visited >= cfg.maxCrushCandidates
-                    || seen.size() >= cfg.maxCrushCandidates) {
+            if (distance > span || visited >= cfg.maxCrushCandidates) {
                 finishCrush();
                 return CrushDispatcher.Step.DONE;
             }
@@ -308,8 +307,9 @@ final class FellSession {
             } catch (CrushQueryLimit exhausted) {
                 distance = span + 1.0;
             }
-            if (visited >= cfg.maxCrushCandidates || seen.size() >= cfg.maxCrushCandidates
-                    || !limiter.crushTimeAvailable()) distance = span + 1.0;
+            if (visited >= cfg.maxCrushCandidates || !limiter.crushTimeAvailable()) {
+                distance = span + 1.0;
+            }
             return CrushDispatcher.Step.PROGRESS;
         }
 

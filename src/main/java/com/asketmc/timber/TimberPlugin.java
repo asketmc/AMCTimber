@@ -34,7 +34,7 @@ public final class TimberPlugin extends JavaPlugin {
         this.recoveryBudget = new RecoveryBudget(PendingYieldFile.MAX_ENTRIES);
         this.store = new FelledTrunkStore(getLogger(), recoveryBudget);
         applyConfig();
-        store.initializeRecovery(getDataFolder().toPath(), budget);
+        store.initializeRecovery(getDataFolder().toPath());
         this.fellManager = new FellJobManager(budget);
 
         store.purgeTagged("start");
