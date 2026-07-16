@@ -28,6 +28,8 @@ jobs:
           cache: maven
       - name: Verify
         run: mvn -B -ntp clean verify
+      - name: Check runtime security invariants
+        run: python3 scripts/check-runtime-security.py
       - name: Check release jar safety
         run: bash scripts/check-release-jar.sh target/AMCTimber-*.jar target/jar-safety-report.txt
       - name: Upload jar

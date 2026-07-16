@@ -50,6 +50,10 @@ detection:
                            # placement authorship cannot be guaranteed without a block-history provider.
   max-horizontal-log-span: 16 # reject suspicious same-species log bridges wider than this
   max-scan-reads: 100000   # cached reads in already-loaded chunks; clamped to 1000..250000
+  max-attempt-micros: 2500 # fail closed when one scan/protection stage exceeds this main-thread deadline
+  max-protection-hook-calls: 4096 # hard per-stage cap across all installed protection integrations
+  max-attempts-per-tick: 4 # global ordinary-player scan admissions; coordinated players share this cap
+  attempt-cooldown-ticks: 4 # per-player delay between expensive scan admissions
   extra-natural: []        # escape hatch: extra block names to also count as natural, e.g. [TUFF, COBBLESTONE]
 
 animation:
@@ -63,6 +67,21 @@ animation:
   max-live-trunks: 64      # active falls + landed trunks + deferred recovery yields; clamped to 1..512
   max-total-entities: 5000 # global Display/Interaction budget; clamped to 64..50000
   view-range: 1.2          # display view-range multiplier
+
+# Server-wide main-thread work pacing. Large work that cannot fit one atomic
+# launch is rejected to vanilla single-block behavior; animation, crush and
+# durable item delivery continue fairly on later ticks.
+runtime-work:
+  launch-block-ops-per-tick: 10000
+  entity-operations-per-tick: 1024
+  max-queued-entity-operations: 8192
+  crush-queries-per-tick: 16
+  crush-targets-per-tick: 64
+  # Checked between dispatcher units; one Paper spatial query itself cannot be preempted by a plugin.
+  crush-max-micros-per-tick: 1000
+  max-crush-candidates-per-fell: 256
+  yield-delivery-steps-per-tick: 8
+  max-recovery-records: 4096
 
 trunk:
   leave-stump: true        # the axed block stays in the world (Valheim stump); cut anywhere on the trunk

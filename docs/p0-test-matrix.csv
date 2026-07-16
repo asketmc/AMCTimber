@@ -1,9 +1,9 @@
 P0 id,Risk,Test class/method,CI gate,Status
 P0-001,grief / false-positive felling,TreeScannerLogicTest.naturalNeighborGuardRejectsPlayerBuildMaterials covers a heuristic rather than a guarantee,unit + P0 tagged tests,partial
 P0-002,false-positive forest spread,TreeScannerLogicTest.speciesOf_materialDelegates_andFencesDifferentWoods; TreeScannerLogicTest.leafMatches_sameSpeciesAndAzaleaCountsAsOakOnly,unit + P0 tagged tests,implemented
-P0-003,protected region damage,ProtectionTest default deny-on-error and decision composition; live hook smoke absent,unit tests + planned runtime smoke,partial
-P0-004,partial mutation / duplicate completion / lost recovery yield,FellLifecycleTest; WorldMutationJournalTest; YieldLedgerTest; PendingYieldTest; PendingYieldFileTest; BlockKeyTest; EntityBudgetTest; live plugin interaction absent,unit + P0 tagged tests + planned runtime failure injection,partial
-P0-005,config DoS,TimberConfigTest.expensiveSettingsHaveUpperBounds; TimberConfigTest.lowerBoundsProtectTinyOrNegativeExpensiveSettings,unit + P0 tagged tests + JaCoCo + PIT,implemented
+P0-003,protected source or landing damage / wrong hook operation,ProtectionTest; LandingPlanTest; scripts/check-runtime-security.py; live WorldGuard/Towny smoke absent,unit + P0 tests + CI invariant gate + planned hook smoke,partial
+P0-004,partial mutation / duplicate completion / lost or starved recovery yield,FellLifecycleTest; WorldMutationJournalTest; YieldLedgerTest; PendingYieldTest actorless legacy fail-closed; PendingYieldFileTest; RecoveryBudgetTest; live filesystem failure injection absent,unit + P0 tagged tests + planned runtime failure injection,partial
+P0-005,main-thread scan / launch / entity / crush / yield exhaustion,TimberConfigTest; FellAttemptBudgetTest; FellAttemptAdmissionTest; RuntimeWorkLimiterTest spent-work accounting; CrushDispatcherTest; FellSessionSecurityTest delayed-target geometry; FellWorkEstimateTest; PendingYieldTest,unit + P0 tagged tests + CI invariant gate,implemented
 P0-006,native/script/nested jar pattern,scripts/check-release-jar.sh heuristic; passing is not a safety guarantee,CI + Release Dry Run + Reviewer Evidence,implemented
 P0-007,release version or source mismatch,scripts/verify-release-version.sh; scripts/check-release-security.py,Release Dry Run + Release Security,implemented
 P0-008,process exec/native load/classloader/network source patterns,scripts/check-runtime-surface.sh; .semgrep.yml,Reviewer Evidence + Semgrep,implemented
@@ -12,4 +12,5 @@ P0-010,Paper boundary-version startup/selftest/shutdown regression,Paper Runtime
 P0-011,QA mutation hooks exposed,qa.commands-enabled defaults false and amctimber.qa is separate; command smoke absent,unit/config tests + planned runtime smoke,partial
 P0-012,Purpur/Pufferfish or gameplay-path runtime regression,Paper endpoint smoke does not cover these runtimes or full fell/chop/protection E2E,planned runtime smoke/E2E,planned
 P0-013,fallen BlockDisplay black from terrain light sampling,ToppleAnimatorMathTest.lightAnchor_sitsAboveTheRenderedBlockAndPreservesEveryVertex plus runtime selftest; arbitrary shader rendering remains manual,unit + P0 tagged tests + Paper selftest + manual shader visual check,partial
+P0-014,block-break cancellation/no-drop or combat-policy bypass,scripts/check-runtime-security.py locks final-state/drop ordering and attributed damage; Paper gameplay fixture absent,CI invariant gate + planned gameplay fixture,partial
 

@@ -66,11 +66,16 @@ final class AdminCommand implements CommandExecutor {
     private void sendInfo(CommandSender sender) {
         TimberConfig cfg = plugin.cfg();
         EntityBudget.Snapshot budget = plugin.budget().snapshot();
+        RecoveryBudget.Snapshot recovery = plugin.recoveryBudget().snapshot();
+        RuntimeWorkLimiter.Snapshot work = plugin.workLimiter().snapshot();
         sender.sendMessage(GRAY + "[AMCTimber] active fells: " + WHITE + plugin.fellManager().activeCount()
                 + GRAY + ", live trunks: " + WHITE + plugin.store().size()
                 + GRAY + ", pending yield: " + WHITE + plugin.store().pendingYieldCount()
+                + GRAY + ", recovery budget: " + WHITE + (recovery.pending() + recovery.reserved())
+                + "/" + recovery.maxEntries()
                 + GRAY + ", entity budget: " + WHITE + budget.sessions() + "/" + budget.maxSessions()
                 + " sessions, " + budget.entities() + "/" + budget.maxEntities() + " entities"
+                + GRAY + ", queued entity work: " + WHITE + work.queuedEntityOps()
                 + GRAY + ", enabled: " + WHITE + cfg.enabled
                 + GRAY + ", stump: " + WHITE + cfg.leaveStump
                 + GRAY + ", yield x: " + WHITE + cfg.logYieldMultiplier
@@ -181,10 +186,6 @@ final class AdminCommand implements CommandExecutor {
         if (!shape.isTree) {
             sender.sendMessage(YELLOW + "[AMCTimber] not a tree: " + shape.rejectReason
                     + " (logs=" + shape.logCount() + ")");
-            return;
-        }
-        if (!plugin.protection().canFell(owner, shape)) {
-            sender.sendMessage(RED + "[AMCTimber] fell denied by build protection.");
             return;
         }
         boolean started = plugin.fellManager().tryFell(owner, shape, plugin.runtime());

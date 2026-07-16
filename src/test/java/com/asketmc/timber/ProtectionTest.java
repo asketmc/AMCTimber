@@ -3,6 +3,7 @@ package com.asketmc.timber;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -68,12 +69,80 @@ class ProtectionTest {
         assertEquals(7, hook.calls);
     }
 
+    @Test
+    void typedDestinationActionIsForwardedWithoutCollapsingToSourceBreak() {
+        List<ProtectionHook.Action> actions = new ArrayList<>();
+        ProtectionHook hook = new FakeHook("typed", true, ProtectionHook.Decision.ALLOW) {
+            @Override public Decision check(Player player, Action action,
+                                            Location location, Material material) {
+                actions.add(action);
+                return Decision.ALLOW;
+            }
+        };
+        Protection protection = new Protection(true, true, ignored -> {}, hook);
+        protection.init();
+
+        assertTrue(protection.canPerform(null, ProtectionHook.Action.ITEM_DROP, null, Material.OAK_LOG));
+        assertEquals(List.of(ProtectionHook.Action.ITEM_DROP), actions);
+    }
+
+    @Test
+    @Tag("P0")
+    void zeroLogYieldDoesNotRequireAuthorizationForAnItemDropThatCannotOccur() {
+        ProtectionHook hook = new FakeHook("typed", true, ProtectionHook.Decision.ALLOW) {
+            @Override public Decision check(Player player, Action action,
+                                            Location location, Material material) {
+                return action == Action.ITEM_DROP ? Decision.DENY : Decision.ALLOW;
+            }
+        };
+        Protection protection = new Protection(true, true, ignored -> {}, hook);
+        protection.init();
+        TreeShape shape = new TreeShape(null,
+                List.of(node(0, true), node(1, true)), List.of(), List.of(), List.of(),
+                0, 0, 0, Material.OAK_LOG, 0.5, 0, 0.5, 1, 0, 2, false, true, null);
+        TimberConfig cfg = new TimberConfig(new YamlConfiguration());
+        LandingPlan landing = LandingPlan.compute(shape, cfg, 0);
+
+        assertTrue(protection.canLand(null, shape, landing, List.of(), 0,
+                new FellAttemptBudget(10_000, 10_000, 1_000_000_000L, System::nanoTime)));
+        assertFalse(protection.canLand(null, shape, landing, List.of(), 1,
+                new FellAttemptBudget(10_000, 10_000, 1_000_000_000L, System::nanoTime)));
+    }
+
+    @Test
+    @Tag("P0")
+    void hookBudgetCountsEveryActiveIntegrationAndFailsClosedEvenInAllowErrorMode() {
+        CountingHook first = new CountingHook();
+        CountingHook second = new CountingHook();
+        Protection protection = new Protection(true, false, ignored -> {}, first, second);
+        protection.init();
+        TreeShape shape = new TreeShape(null,
+                List.of(node(0, true), node(1, true)), List.of(), List.of(), List.of(),
+                0, 0, 0, Material.OAK_LOG, 0, 0, 0, 1, 0, 2, false, true, null);
+        FellAttemptBudget budget = new FellAttemptBudget(10, 3, 1_000_000_000L, System::nanoTime);
+
+        assertFalse(protection.canFell(null, shape, budget));
+        assertEquals(3, first.calls + second.calls);
+        assertEquals("protection-call-budget", budget.reason());
+    }
+
     private static ProtectionHook hook(String name, ProtectionHook.Decision decision) {
         return new FakeHook(name, true, decision);
     }
 
-    private record FakeHook(String name, boolean present, ProtectionHook.Decision decision)
-            implements ProtectionHook {
+    private static class FakeHook implements ProtectionHook {
+        private final String name;
+        private final boolean present;
+        private final ProtectionHook.Decision decision;
+
+        private FakeHook(String name, boolean present, ProtectionHook.Decision decision) {
+            this.name = name;
+            this.present = present;
+            this.decision = decision;
+        }
+
+        @Override public String name() { return name; }
+        @Override public boolean present() { return present; }
         @Override public void init() {}
         @Override public Decision canBreak(Player player, Location location, Material material) { return decision; }
     }

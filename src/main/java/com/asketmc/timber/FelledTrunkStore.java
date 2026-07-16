@@ -2,15 +2,19 @@ package com.asketmc.timber;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
+import org.bukkit.inventory.ItemStack;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.Deque;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -18,33 +22,46 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
-/** Registry and lifecycle cleanup for landed trunks. */
+/** Registry, bounded durable-yield dispatcher, and lifecycle cleanup for landed trunks. */
 final class FelledTrunkStore {
     private final Logger log;
+    private final RecoveryBudget recoveryBudget;
     private final Map<UUID, FelledTrunk> index = new ConcurrentHashMap<>();
     private final Set<FelledTrunk> all = ConcurrentHashMap.newKeySet();
-    private final Set<PendingYield> pendingYields = ConcurrentHashMap.newKeySet();
-    private final List<PendingYieldFile.Entry> dormantYields = new ArrayList<>();
-    private EntityBudget budget;
+    private final Deque<PendingYield> pendingYields = new ArrayDeque<>();
+    /** Terminal handoffs retained in memory but withheld from delivery until a journal write succeeds. */
+    private final Deque<PendingYield> stagedYields = new ArrayDeque<>();
+    private final Deque<PendingYieldFile.Entry> dormantYields = new ArrayDeque<>();
     private Path recoveryFile;
     private boolean recoveryStateDirty;
+    private int deliveryStepsPerTick = 8;
+    private Protection protection;
 
-    FelledTrunkStore(Logger log) {
+    FelledTrunkStore(Logger log, RecoveryBudget recoveryBudget) {
         this.log = log;
+        this.recoveryBudget = recoveryBudget;
     }
 
-    void initializeRecovery(Path dataDirectory, EntityBudget entityBudget) {
-        this.budget = entityBudget;
+    void updateDeliveryLimit(int steps) {
+        deliveryStepsPerTick = Math.max(1, steps);
+    }
+
+    void updateProtection(Protection protection) {
+        this.protection = protection;
+    }
+
+    void initializeRecovery(Path dataDirectory, EntityBudget ignoredLiveBudget) {
         this.recoveryFile = dataDirectory.resolve("pending-yields.properties");
         try {
             dormantYields.addAll(PendingYieldFile.read(recoveryFile));
+            recoveryBudget.restorePending(dormantYields.size());
             if (!dormantYields.isEmpty()) {
                 log.warning("loaded " + dormantYields.size() + " pending timber yield record(s)");
             }
         } catch (IOException | RuntimeException failure) {
             quarantineInvalidRecoveryFile(failure);
         }
-        promoteDormantYields();
+        promoteDormantYields(deliveryStepsPerTick);
         persistRecoveryState();
     }
 
@@ -62,28 +79,141 @@ final class FelledTrunkStore {
         for (UUID id : trunk.allIds()) index.remove(id);
     }
 
-    int size() {
-        return all.size();
-    }
+    int size() { return all.size(); }
 
-    int pendingYieldCount() {
-        return pendingYields.size() + dormantYields.size();
-    }
+    int pendingYieldCount() { return pendingYields.size() + stagedYields.size() + dormantYields.size(); }
 
     boolean recoveryCapacityAvailable() {
-        if (budget == null) return false;
-        return pendingYieldCount() + budget.snapshot().maxSessions() <= PendingYieldFile.MAX_ENTRIES;
+        RecoveryBudget.Snapshot snapshot = recoveryBudget.snapshot();
+        return snapshot.pending() + snapshot.reserved() < snapshot.maxEntries();
     }
 
-    boolean deferYield(World world, Location location, org.bukkit.Material material,
-                       YieldLedger yield, EntityBudget.Reservation reservation) {
-        if (yield.empty() || pendingYieldCount() >= PendingYieldFile.MAX_ENTRIES
-                || !reservation.resize(0)) return false;
-        pendingYields.add(new PendingYield(world, location, material, yield, reservation));
-        log.warning("deferred " + yield.remaining() + " logs after item delivery was rejected");
+    boolean deferYield(UUID ownerId, World world, Location location, Material material, YieldLedger yield,
+                       RecoveryBudget.Reservation recoveryReservation) {
+        if (yield.empty()) return true;
+        if (!PendingYieldFile.supportedYieldMaterial(material)
+                || recoveryReservation == null || recoveryReservation.remaining() < 1) return false;
+        int amount = yield.remaining();
+        PendingYield pending = new PendingYield(UUID.randomUUID(), ownerId, world, location,
+                material, new YieldLedger(amount));
+        boolean wasDirty = recoveryStateDirty;
+        pendingYields.addLast(pending);
         recoveryStateDirty = true;
-        persistRecoveryState();
+        if (!persistRecoveryState()) {
+            pendingYields.removeLastOccurrence(pending);
+            recoveryStateDirty = wasDirty;
+            return false;
+        }
+        if (!recoveryReservation.transfer(1)) {
+            pendingYields.removeLastOccurrence(pending);
+            recoveryStateDirty = true;
+            persistRecoveryState();
+            return false;
+        }
+        yield.delivered(amount);
+        log.warning("queued " + amount + " timber item(s) for paced delivery");
         return true;
+    }
+
+    /**
+     * Transfers a terminal source ledger to store ownership even when the first journal write fails.
+     * Staged records cannot deliver until a later successful atomic checkpoint promotes them.
+     */
+    boolean retainYield(UUID ownerId, World world, Location location, Material material, YieldLedger yield,
+                        RecoveryBudget.Reservation recoveryReservation) {
+        if (yield.empty()) return true;
+        if (!PendingYieldFile.supportedYieldMaterial(material)
+                || recoveryReservation == null || recoveryReservation.remaining() < 1) return false;
+        int amount = yield.remaining();
+        PendingYield pending = new PendingYield(UUID.randomUUID(), ownerId, world, location,
+                material, new YieldLedger(amount));
+        stagedYields.addLast(pending);
+        if (!recoveryReservation.transfer(1)) {
+            stagedYields.removeLastOccurrence(pending);
+            return false;
+        }
+        yield.delivered(amount);
+        recoveryStateDirty = true;
+        boolean durable = persistRecoveryState();
+        log.warning("retained " + amount + " timber item(s) for paced delivery"
+                + (durable ? "" : "; journal retry pending"));
+        return true;
+    }
+
+    boolean deferItems(UUID ownerId, World world, Location location, List<ItemStack> items,
+                       RecoveryBudget.Reservation recoveryReservation) {
+        Map<Material, Integer> totals = new LinkedHashMap<>();
+        for (ItemStack item : items) {
+            if (item != null && item.getAmount() > 0) totals.merge(item.getType(), item.getAmount(), Integer::sum);
+        }
+        if (totals.isEmpty()) return true;
+        for (Material material : totals.keySet()) {
+            if (!PendingYieldFile.supportedYieldMaterial(material)) return false;
+        }
+        if (recoveryReservation == null || recoveryReservation.remaining() < totals.size()) return false;
+        List<PendingYield> added = new ArrayList<>();
+        for (Map.Entry<Material, Integer> entry : totals.entrySet()) {
+            PendingYield pending = new PendingYield(UUID.randomUUID(), ownerId, world, location,
+                    entry.getKey(), new YieldLedger(entry.getValue()));
+            pendingYields.addLast(pending);
+            added.add(pending);
+        }
+        boolean wasDirty = recoveryStateDirty;
+        recoveryStateDirty = true;
+        if (!persistRecoveryState()) {
+            pendingYields.removeAll(added);
+            recoveryStateDirty = wasDirty;
+            return false;
+        }
+        if (!recoveryReservation.transfer(totals.size())) {
+            pendingYields.removeAll(added);
+            recoveryStateDirty = true;
+            persistRecoveryState();
+            return false;
+        }
+        return true;
+    }
+
+    /** Terminal counterpart to deferItems; ownership is retained in a non-deliverable staging queue. */
+    boolean retainItems(UUID ownerId, World world, Location location, List<ItemStack> items,
+                        RecoveryBudget.Reservation recoveryReservation) {
+        Map<Material, Integer> totals = validatedTotals(items);
+        if (totals == null) return false;
+        if (totals.isEmpty()) return true;
+        if (recoveryReservation == null || recoveryReservation.remaining() < totals.size()) return false;
+        List<PendingYield> added = new ArrayList<>();
+        for (Map.Entry<Material, Integer> entry : totals.entrySet()) {
+            PendingYield pending = new PendingYield(UUID.randomUUID(), ownerId, world, location,
+                    entry.getKey(), new YieldLedger(entry.getValue()));
+            stagedYields.addLast(pending);
+            added.add(pending);
+        }
+        if (!recoveryReservation.transfer(totals.size())) {
+            stagedYields.removeAll(added);
+            return false;
+        }
+        recoveryStateDirty = true;
+        boolean durable = persistRecoveryState();
+        log.warning("retained " + totals.size() + " terminal leaf-yield record(s)"
+                + (durable ? "" : "; journal retry pending"));
+        return true;
+    }
+
+    private static Map<Material, Integer> validatedTotals(List<ItemStack> items) {
+        Map<Material, Integer> totals = new LinkedHashMap<>();
+        for (ItemStack item : items) {
+            if (item != null && item.getAmount() > 0) totals.merge(item.getType(), item.getAmount(), Integer::sum);
+        }
+        for (Material material : totals.keySet()) {
+            if (!PendingYieldFile.supportedYieldMaterial(material)) return null;
+        }
+        return totals;
+    }
+
+    static int deliveryRecords(List<ItemStack> items) {
+        Set<Material> materials = java.util.EnumSet.noneOf(Material.class);
+        for (ItemStack item : items) if (item != null && item.getAmount() > 0) materials.add(item.getType());
+        return materials.size();
     }
 
     FelledTrunk nearest(Location from, double radius) {
@@ -102,16 +232,23 @@ final class FelledTrunkStore {
         return best;
     }
 
+    void tickYieldDelivery() {
+        promoteDormantYields(deliveryStepsPerTick);
+        retryPendingYields(System.currentTimeMillis(), false, deliveryStepsPerTick);
+    }
+
     void sweep() {
         long now = System.currentTimeMillis();
-        promoteDormantYields();
-        retryPendingYields(now, false);
         for (FelledTrunk trunk : new ArrayList<>(all)) {
             if (!trunk.valid()) {
                 try {
-                    if (!trunk.deferCompletedYield(this, "entity invalidation")) trunk.expire();
+                    if (trunk.needsCompletedYieldRecovery()) {
+                        if (!trunk.deferCompletedYield(this, "entity invalidation")) continue;
+                    } else {
+                        trunk.expire();
+                    }
                 } finally {
-                    drop(trunk);
+                    if (!trunk.needsCompletedYieldRecovery()) drop(trunk);
                 }
             } else if (now >= trunk.despawnAtMillis()) {
                 try {
@@ -121,6 +258,7 @@ final class FelledTrunkStore {
                 }
             }
         }
+        if (recoveryStateDirty) persistRecoveryState();
     }
 
     int purgeTagged(String reason) {
@@ -149,61 +287,57 @@ final class FelledTrunkStore {
         index.clear();
         boolean persisted = persistRecoveryState();
         if (!persisted) {
-            retryPendingYields(System.currentTimeMillis(), true);
-            persistRecoveryState();
+            retryPendingYields(System.currentTimeMillis(), true, deliveryStepsPerTick);
+            persisted = persistRecoveryState();
         }
-        for (PendingYield pending : new ArrayList<>(pendingYields)) {
-            pending.close();
+        if (persisted) {
+            pendingYields.clear();
+            stagedYields.clear();
+            dormantYields.clear();
+        } else {
+            log.severe("pending timber yield remains in memory after repeated shutdown persistence failure");
         }
-        pendingYields.clear();
-        dormantYields.clear();
         purgeTagged("disable");
     }
 
-    private void retryPendingYields(long now, boolean force) {
+    private void retryPendingYields(long now, boolean force, int maxSteps) {
         boolean changed = false;
-        for (PendingYield pending : new ArrayList<>(pendingYields)) {
+        int steps = Math.min(Math.max(0, maxSteps), pendingYields.size());
+        for (int step = 0; step < steps; step++) {
+            PendingYield pending = pendingYields.pollFirst();
+            if (pending == null) break;
             try {
-                PendingYield.Attempt attempt = pending.attempt(now, force);
+                PendingYield.Attempt attempt = pending.attemptOne(now, force, protection);
                 changed |= attempt.changed();
                 if (attempt.complete()) {
-                    pendingYields.remove(pending);
-                    pending.close();
+                    recoveryBudget.delivered();
                     log.info("delivered deferred timber yield");
+                } else {
+                    pendingYields.addLast(pending);
                 }
             } catch (RuntimeException | LinkageError failure) {
+                pendingYields.addLast(pending);
                 log.warning("deferred timber yield retry failed: " + failure.getClass().getSimpleName());
             }
         }
-        if (changed) {
-            promoteDormantYields();
-            recoveryStateDirty = true;
-        }
-        if (recoveryStateDirty) {
-            if (!persistRecoveryState() && changed) {
-                quarantineRecoveryFile("stale-after-delivery");
-                persistRecoveryState();
-            }
-        }
+        if (changed) recoveryStateDirty = true;
+        // Progress is checkpointed by the one-second sweep, avoiding a full journal rewrite every tick.
     }
 
-    private void promoteDormantYields() {
-        if (budget == null || dormantYields.isEmpty()) return;
-        Iterator<PendingYieldFile.Entry> iterator = dormantYields.iterator();
-        while (iterator.hasNext()) {
-            PendingYieldFile.Entry entry = iterator.next();
+    private void promoteDormantYields(int maxPromotions) {
+        if (dormantYields.isEmpty()) return;
+        int limit = Math.max(1, maxPromotions);
+        int visits = Math.min(limit, dormantYields.size());
+        for (int visit = 0; visit < visits; visit++) {
+            PendingYieldFile.Entry entry = dormantYields.removeFirst();
             World world = Bukkit.getWorld(entry.worldId());
-            if (world == null) continue;
-            EntityBudget.Reservation reservation = budget.tryReserve(0);
-            if (reservation == null) return;
-            if (!reservation.resize(0)) {
-                reservation.close();
-                return;
+            if (world == null) {
+                dormantYields.addLast(entry);
+                continue;
             }
             Location location = new Location(world, entry.x(), entry.y(), entry.z());
-            pendingYields.add(new PendingYield(entry.id(), world, location, entry.material(),
-                    new YieldLedger(entry.amount()), reservation));
-            iterator.remove();
+            pendingYields.addLast(new PendingYield(entry.id(), entry.ownerId(), world, location,
+                    entry.material(), new YieldLedger(entry.amount())));
         }
     }
 
@@ -211,9 +345,11 @@ final class FelledTrunkStore {
         if (recoveryFile == null) return true;
         List<PendingYieldFile.Entry> entries = new ArrayList<>(dormantYields);
         for (PendingYield pending : pendingYields) entries.add(pending.snapshot());
+        for (PendingYield pending : stagedYields) entries.add(pending.snapshot());
         try {
             PendingYieldFile.write(recoveryFile, entries);
             recoveryStateDirty = false;
+            while (!stagedYields.isEmpty()) pendingYields.addLast(stagedYields.removeFirst());
             return true;
         } catch (IOException | RuntimeException failure) {
             recoveryStateDirty = true;

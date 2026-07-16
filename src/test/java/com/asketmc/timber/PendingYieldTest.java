@@ -22,36 +22,26 @@ class PendingYieldTest {
     void rejectedSpawnRetainsLedgerUntilRateLimitedRetrySucceeds() {
         AtomicInteger attempts = new AtomicInteger();
         World world = worldThatAcceptsOnSecondAttempt(attempts);
-        EntityBudget budget = new EntityBudget(1, 10);
-        EntityBudget.Reservation reservation = budget.tryReserve(10);
-        assertNotNull(reservation);
-        assertTrue(reservation.resize(0));
         PendingYield pending = new PendingYield(world, new Location(world, 0, 64, 0),
-                Material.OAK_LOG, new YieldLedger(10), reservation);
+                Material.OAK_LOG, new YieldLedger(10));
 
-        assertFalse(pending.attempt(10_000L, false).complete());
+        assertFalse(pending.attemptOne(10_000L, false).complete());
         assertEquals(10, pending.remaining());
-        assertFalse(pending.attempt(10_001L, false).complete());
+        assertFalse(pending.attemptOne(10_001L, false).complete());
         assertEquals(1, attempts.get(), "retry must be rate limited");
-        assertTrue(pending.attempt(15_000L, false).complete());
+        assertTrue(pending.attemptOne(15_000L, false).complete());
         assertEquals(0, pending.remaining());
-
-        pending.close();
-        assertEquals(0, budget.snapshot().sessions());
     }
 
     @Test
     void retryDoesNotLoadAnUnloadedChunk() {
         AtomicInteger attempts = new AtomicInteger();
         World world = world(attempts, false);
-        EntityBudget budget = new EntityBudget(1, 10);
-        EntityBudget.Reservation reservation = budget.tryReserve(0);
         PendingYield pending = new PendingYield(world, new Location(world, 0, 64, 0),
-                Material.OAK_LOG, new YieldLedger(1), reservation);
+                Material.OAK_LOG, new YieldLedger(1));
 
-        assertFalse(pending.attempt(10_000L, true).complete());
+        assertFalse(pending.attemptOne(10_000L, true).complete());
         assertEquals(0, attempts.get());
-        pending.close();
     }
 
     @Test
@@ -59,17 +49,37 @@ class PendingYieldTest {
     void partialMultiStackDeliveryReportsJournalProgress() {
         AtomicInteger attempts = new AtomicInteger();
         World world = worldWithOutcomes(attempts, true, false);
-        EntityBudget budget = new EntityBudget(1, 10);
-        EntityBudget.Reservation reservation = budget.tryReserve(0);
         PendingYield pending = new PendingYield(world, new Location(world, 0, 64, 0),
-                Material.OAK_LOG, new YieldLedger(130), reservation);
+                Material.OAK_LOG, new YieldLedger(130));
 
-        PendingYield.Attempt result = pending.attempt(10_000L, true);
+        PendingYield.Attempt result = pending.attemptOne(10_000L, true);
         assertFalse(result.complete());
         assertTrue(result.changed());
         assertEquals(66, pending.remaining());
         assertEquals(66, pending.snapshot().amount());
-        pending.close();
+    }
+
+    @Test
+    @Tag("P0")
+    void actorlessLegacyYieldStaysDormantWhileProtectionIsActive() {
+        AtomicInteger attempts = new AtomicInteger();
+        World world = world(attempts, true);
+        PendingYield pending = new PendingYield(UUID.randomUUID(), null, world,
+                new Location(world, 0, 64, 0), Material.OAK_LOG, new YieldLedger(1));
+        Protection protection = new Protection(true, true, ignored -> {}, new ProtectionHook() {
+            @Override public String name() { return "active"; }
+            @Override public void init() {}
+            @Override public boolean present() { return true; }
+            @Override public Decision canBreak(org.bukkit.entity.Player player,
+                                               Location location, Material material) {
+                return Decision.ALLOW;
+            }
+        });
+        protection.init();
+
+        assertFalse(pending.attemptOne(10_000L, true, protection).complete());
+        assertEquals(1, pending.remaining());
+        assertEquals(0, attempts.get(), "unknown legacy actor must not reach the item-spawn sink");
     }
 
     private static World worldThatAcceptsOnSecondAttempt(AtomicInteger attempts) {
@@ -88,7 +98,7 @@ class PendingYieldTest {
         UUID worldId = UUID.randomUUID();
         return (World) Proxy.newProxyInstance(PendingYieldTest.class.getClassLoader(),
                 new Class<?>[]{World.class}, (proxy, method, args) -> {
-                    if (method.getName().equals("dropItemNaturally")) {
+                    if (method.getName().equals("dropItem")) {
                         int attempt = attempts.getAndIncrement();
                         boolean accepted = outcomes[Math.min(attempt, outcomes.length - 1)];
                         return item(accepted);

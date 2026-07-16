@@ -25,6 +25,13 @@ final class TimberConfig {
     static final int MAX_TOTAL_ENTITIES_CAP = 50_000;
     static final int MAX_SCAN_READS_CAP = 250_000;
     static final int MAX_DESPAWN_SECONDS_CAP = 3_600;
+    static final int MAX_PROTECTION_HOOK_CALLS_CAP = 20_000;
+    static final int MAX_ATTEMPT_MICROS_CAP = 10_000;
+    static final int MAX_LAUNCH_BLOCK_OPS_CAP = 50_000;
+    static final int MAX_ENTITY_OPERATIONS_CAP = 4_096;
+    static final int MAX_QUEUED_ENTITY_OPERATIONS_CAP = 65_536;
+    static final int MAX_YIELD_DELIVERY_STEPS_CAP = 64;
+    static final int MAX_RECOVERY_RECORDS_CAP = PendingYieldFile.MAX_ENTRIES;
 
     final String debug;                 // off | info | full
 
@@ -54,6 +61,10 @@ final class TimberConfig {
     final boolean wildOnly;             // reject felling a "tree" wired into a player build (cabin/treehouse)
     final int maxHorizontalLogSpan;
     final int maxScanReads;
+    final int maxAttemptMicros;
+    final int maxProtectionHookCalls;
+    final int maxScanAttemptsPerTick;
+    final int scanAttemptCooldownTicks;
     final Set<Material> extraNatural;   // operator escape hatch: extra block types to treat as natural
 
     final int creakTicks;
@@ -66,6 +77,16 @@ final class TimberConfig {
     final int maxLiveTrunks;
     final int maxTotalEntities;
     final float viewRange;
+
+    final int launchBlockOpsPerTick;
+    final int entityOperationsPerTick;
+    final int maxQueuedEntityOperations;
+    final int crushQueriesPerTick;
+    final int crushTargetsPerTick;
+    final int crushMaxMicrosPerTick;
+    final int maxCrushCandidates;
+    final int yieldDeliveryStepsPerTick;
+    final int maxRecoveryRecords;
 
     final boolean leaveStump;
     final int hitsToFell;
@@ -129,6 +150,12 @@ final class TimberConfig {
         this.wildOnly = c.getBoolean("detection.wild-only", true);
         this.maxHorizontalLogSpan = clampInt(c.getInt("detection.max-horizontal-log-span", 16), 4, 64);
         this.maxScanReads = clampInt(c.getInt("detection.max-scan-reads", 100_000), 1_000, MAX_SCAN_READS_CAP);
+        this.maxAttemptMicros = clampInt(c.getInt("detection.max-attempt-micros", 2_500),
+                250, MAX_ATTEMPT_MICROS_CAP);
+        this.maxProtectionHookCalls = clampInt(c.getInt("detection.max-protection-hook-calls", 4_096),
+                1, MAX_PROTECTION_HOOK_CALLS_CAP);
+        this.maxScanAttemptsPerTick = clampInt(c.getInt("detection.max-attempts-per-tick", 4), 1, 64);
+        this.scanAttemptCooldownTicks = clampInt(c.getInt("detection.attempt-cooldown-ticks", 4), 0, 100);
         this.extraNatural = parseMaterials(c.getStringList("detection.extra-natural"));
 
         this.creakTicks = (int) clamp(c.getInt("animation.creak-ticks", 5), 0, 20);
@@ -141,6 +168,23 @@ final class TimberConfig {
         this.maxLiveTrunks = clampInt(c.getInt("animation.max-live-trunks", 64), 1, MAX_LIVE_TRUNKS_CAP);
         this.maxTotalEntities = clampInt(c.getInt("animation.max-total-entities", 5_000), 64, MAX_TOTAL_ENTITIES_CAP);
         this.viewRange = (float) clamp(c.getDouble("animation.view-range", 1.2), 0.1, 5.0);
+
+        this.launchBlockOpsPerTick = clampInt(c.getInt("runtime-work.launch-block-ops-per-tick", 10_000),
+                256, MAX_LAUNCH_BLOCK_OPS_CAP);
+        this.entityOperationsPerTick = clampInt(c.getInt("runtime-work.entity-operations-per-tick", 1_024),
+                64, MAX_ENTITY_OPERATIONS_CAP);
+        this.maxQueuedEntityOperations = clampInt(c.getInt("runtime-work.max-queued-entity-operations", 8_192),
+                64, MAX_QUEUED_ENTITY_OPERATIONS_CAP);
+        this.crushQueriesPerTick = clampInt(c.getInt("runtime-work.crush-queries-per-tick", 16), 1, 128);
+        this.crushTargetsPerTick = clampInt(c.getInt("runtime-work.crush-targets-per-tick", 64), 1, 512);
+        this.crushMaxMicrosPerTick = clampInt(c.getInt("runtime-work.crush-max-micros-per-tick", 1_000),
+                100, MAX_ATTEMPT_MICROS_CAP);
+        this.maxCrushCandidates = clampInt(c.getInt("runtime-work.max-crush-candidates-per-fell", 256),
+                16, 1_024);
+        this.yieldDeliveryStepsPerTick = clampInt(c.getInt("runtime-work.yield-delivery-steps-per-tick", 8),
+                1, MAX_YIELD_DELIVERY_STEPS_CAP);
+        this.maxRecoveryRecords = clampInt(c.getInt("runtime-work.max-recovery-records", 4_096),
+                64, MAX_RECOVERY_RECORDS_CAP);
 
         this.leaveStump = c.getBoolean("trunk.leave-stump", true);
         this.hitsToFell = clampInt(c.getInt("trunk.hits-to-fell", 3), 1, 100);

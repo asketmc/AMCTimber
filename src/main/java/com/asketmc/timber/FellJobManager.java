@@ -44,37 +44,118 @@ final class FellJobManager {
                     + " exceeds display cap " + cfg.maxDisplayEntities);
             return false;
         }
+        int largestPhase = ToppleAnimator.renderedCount(cfg, shape)
+                + FelledTrunk.hitboxCount(shape.height);
+        if (largestPhase > cfg.entityOperationsPerTick
+                || FellWorkEstimate.launchEntityOps(cfg, shape) > cfg.entityOperationsPerTick) {
+            runtime.debug().full("fell rejected: one atomic entity phase exceeds per-tick work cap");
+            return false;
+        }
+
+        int blockWork = FellWorkEstimate.launchBlockOps(shape, cfg.leafLoot);
+        int entityWork = FellWorkEstimate.launchEntityOps(cfg, shape);
+        RuntimeWorkLimiter.Admission workAdmission = runtime.workLimiter()
+                .tryReserveLaunch(blockWork, entityWork);
+        if (workAdmission == null) {
+            runtime.debug().full("fell rejected by global per-tick launch budget");
+            return false;
+        }
+        RuntimeWorkLimiter.QueueReservation queueReservation = runtime.workLimiter()
+                .tryReserveQueue(FellWorkEstimate.queuedEntityOps(cfg, shape));
+        if (queueReservation == null) {
+            workAdmission.close();
+            runtime.debug().full("fell rejected by global entity-work queue capacity");
+            return false;
+        }
 
         BlockKey cutKey = BlockKey.from(shape);
         synchronized (activeCuts) {
-            if (activeCuts.size() >= cfg.maxConcurrentFells || !activeCuts.add(cutKey)) return false;
+            if (activeCuts.size() >= cfg.maxConcurrentFells || !activeCuts.add(cutKey)) {
+                workAdmission.close();
+                queueReservation.close();
+                return false;
+            }
         }
 
         EntityBudget.Reservation reservation = budget.tryReserve(ToppleAnimator.plannedPeakEntities(cfg, shape));
         if (reservation == null) {
             release(cutKey);
+            workAdmission.close();
+            queueReservation.close();
             runtime.debug().full("fell rejected by global entity/session budget");
             return false;
         }
 
         WorldMutationJournal journal = new WorldMutationJournal(shape.world);
         ToppleAnimator.Rig rig = null;
+        RecoveryBudget.Reservation recoveryReservation = null;
         FellSession session;
         try {
-            List<TreeShape.Node> snapshots = mutationSnapshots(shape);
-            if (!journal.preflight(snapshots)) {
+            // Ground probing, footprint construction, protection traversal and loot reads are real
+            // launch work even when policy or state rejects the fell. Never refund those block units.
+            workAdmission.commitBlocks();
+            double yDrop = groundDrop(shape);
+            LandingPlan landing = LandingPlan.compute(shape, cfg, yDrop);
+            FellAttemptBudget authorizationBudget = FellAttemptBudget.from(cfg);
+            if (owner != null && !runtime.protection().canFell(owner, shape, authorizationBudget)) {
                 reservation.close();
                 release(cutKey);
-                runtime.debug().full("fell rejected: world changed after scan");
+                workAdmission.close();
+                queueReservation.close();
+                runtime.debug().full("fell rejected by source protection policy");
                 return false;
             }
 
             List<ItemStack> leafLoot = cfg.leafLoot ? collectLeafLoot(shape) : List.of();
+            for (ItemStack item : leafLoot) {
+                if (!PendingYieldFile.supportedYieldMaterial(item.getType())) {
+                    reservation.close();
+                    release(cutKey);
+                    workAdmission.close();
+                    queueReservation.close();
+                    runtime.debug().warn("fell rejected: unsupported recovery material " + item.getType());
+                    return false;
+                }
+            }
+            if (owner != null && !runtime.protection().canLand(
+                    owner, shape, landing, leafLoot, cfg.logsYielded(shape.logCount()),
+                    authorizationBudget)) {
+                reservation.close();
+                release(cutKey);
+                workAdmission.close();
+                queueReservation.close();
+                runtime.debug().full("fell rejected by landing protection policy");
+                return false;
+            }
+            int recoveryRecords = FelledTrunkStore.deliveryRecords(leafLoot)
+                    + (cfg.logsYielded(shape.logCount()) > 0 ? 1 : 0);
+            recoveryReservation = runtime.recoveryBudget().tryReserve(recoveryRecords);
+            if (recoveryReservation == null) {
+                reservation.close();
+                release(cutKey);
+                workAdmission.close();
+                queueReservation.close();
+                runtime.debug().full("fell rejected by durable-yield capacity");
+                return false;
+            }
+
+            List<TreeShape.Node> snapshots = mutationSnapshots(shape);
+            if (!journal.preflight(snapshots)) {
+                recoveryReservation.close();
+                reservation.close();
+                release(cutKey);
+                workAdmission.close();
+                queueReservation.close();
+                runtime.debug().full("fell rejected: world changed after scan");
+                return false;
+            }
+
             removeTree(journal, shape);
 
-            double yDrop = groundDrop(shape);
             runtime.effects().crackStart(new Location(shape.world,
                     shape.cutX + 0.5, shape.cutY, shape.cutZ + 0.5));
+            // Entity work becomes spent immediately before the first spawn attempt.
+            workAdmission.commit();
             rig = ToppleAnimator.spawn(cfg, shape);
 
             FellLifecycle lifecycle = new FellLifecycle();
@@ -82,13 +163,18 @@ final class FellJobManager {
             UUID ownerId = owner == null ? null : owner.getUniqueId();
             session = new FellSession(runtime.scheduler(), runtime.debug(), this, runtime.store(),
                     cfg, runtime.effects(), runtime.xpBridge(), runtime.messages(), runtime.protection(),
-                    shape, rig, owner, ownerId, cutKey, yDrop, leafLoot, yield, lifecycle, reservation);
+                    runtime.workLimiter(), runtime.crushDispatcher(), shape, rig, landing,
+                    owner, ownerId, cutKey, leafLoot, yield, lifecycle, reservation,
+                    recoveryReservation, queueReservation);
         } catch (RuntimeException | LinkageError failure) {
             int restored = journal.rollback();
             int restoreFailures = journal.rollbackFailures();
             ToppleAnimator.remove(rig);
+            if (recoveryReservation != null) recoveryReservation.close();
             reservation.close();
             release(cutKey);
+            workAdmission.close();
+            queueReservation.close();
             runtime.debug().warn("fell launch rolled back at " + shape.cutX + ',' + shape.cutY + ',' + shape.cutZ
                     + ": " + failure.getClass().getSimpleName() + " (restored " + restored
                     + " blocks, restore failures " + restoreFailures + ")");
@@ -98,6 +184,7 @@ final class FellJobManager {
         // Ownership transfers after the destructive transaction commits. start() contains and recovers
         // scheduler failures, so a committed fell can never re-enter the rollback path or duplicate yield.
         journal.commit();
+        workAdmission.close();
         activeSessions.add(session);
         session.start();
         return true;

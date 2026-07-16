@@ -6,7 +6,6 @@ import org.bukkit.World;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -50,14 +49,28 @@ final class FelledTrunk {
     private final Debug debug;
     private final FellLifecycle lifecycle;
     private final EntityBudget.Reservation reservation;
+    private final RecoveryBudget.Reservation recoveryReservation;
+    private final FelledTrunkStore store;
+    private final Protection protection;
+    private final RuntimeWorkLimiter workLimiter;
+    private final RuntimeWorkLimiter.QueueReservation queueReservation;
+    private final Location yieldLocation;
     private final Map<UUID, Long> lastChop = new HashMap<>();
     private final Map<UUID, Long> lastHint = new HashMap<>();
+    private int desiredKeep;
+    private boolean shrinkQueued;
+    private boolean cleanupRequested;
+    /** Actor who first supplied the completing chop; retained across journal retries and shutdown. */
+    private UUID completionActorId;
 
     FelledTrunk(World world, List<BlockDisplay> displays, List<Hitbox> hitboxes, UUID owner,
                 Material dropMaterial, YieldLedger yield, int required,
                 double baseX, double baseY, double baseZ, double dirX, double dirZ, double height,
                 TimberConfig cfg, Fx fx, XpBridge xpBridge, Messages messages, Debug debug,
-                FellLifecycle lifecycle, EntityBudget.Reservation reservation) {
+                FellLifecycle lifecycle, EntityBudget.Reservation reservation,
+                RecoveryBudget.Reservation recoveryReservation, FelledTrunkStore store,
+                Protection protection, RuntimeWorkLimiter workLimiter,
+                RuntimeWorkLimiter.QueueReservation queueReservation, Location yieldLocation) {
         this.world = world;
         this.displays = displays;
         this.hitboxes = hitboxes;
@@ -82,6 +95,13 @@ final class FelledTrunk {
         this.debug = debug;
         this.lifecycle = lifecycle;
         this.reservation = reservation;
+        this.recoveryReservation = recoveryReservation;
+        this.store = store;
+        this.protection = protection;
+        this.workLimiter = workLimiter;
+        this.queueReservation = queueReservation;
+        this.yieldLocation = yieldLocation.clone();
+        this.desiredKeep = this.initialDisplays;
         this.despawnAtMillis = System.currentTimeMillis() + cfg.despawnSeconds * 1000L;
     }
 
@@ -104,6 +124,32 @@ final class FelledTrunk {
 
     boolean blockedFor(Player player) {
         return cfg.ownerLock && owner != null && !owner.equals(player.getUniqueId());
+    }
+
+    Material dropMaterial() { return dropMaterial; }
+
+    Location yieldLocation() { return yieldLocation.clone(); }
+
+    synchronized boolean willComplete(int amount) {
+        return progress + Math.max(1, amount) >= required;
+    }
+
+    boolean authorized(Player player, Interaction interaction, int amount) {
+        org.bukkit.util.BoundingBox box = interaction.getBoundingBox();
+        int maxX = (int) Math.floor(Math.nextDown(box.getMaxX()));
+        int maxY = (int) Math.floor(Math.nextDown(box.getMaxY()));
+        int maxZ = (int) Math.floor(Math.nextDown(box.getMaxZ()));
+        for (int x = (int) Math.floor(box.getMinX()); x <= maxX; x++) {
+            for (int y = (int) Math.floor(box.getMinY()); y <= maxY; y++) {
+                for (int z = (int) Math.floor(box.getMinZ()); z <= maxZ; z++) {
+                    if (!protection.canPerform(player, ProtectionHook.Action.TRUNK_INTERACT,
+                            new Location(world, x, y, z), dropMaterial)) return false;
+                }
+            }
+        }
+        return yield.empty() || !willComplete(amount)
+                || protection.canPerform(player, ProtectionHook.Action.ITEM_DROP,
+                yieldLocation, dropMaterial);
     }
 
     Location center() {
@@ -140,36 +186,33 @@ final class FelledTrunk {
         despawnAtMillis = System.currentTimeMillis() + cfg.despawnSeconds * 1000L;
 
         double fraction = progress / (double) required;
-        fx.chopHit(pointAt(Math.max(0.5, height * (1.0 - fraction) * 0.9)),
-                dropMaterial.createBlockData(), fraction);
+        bestEffort("chop effect", () -> fx.chopHit(
+                pointAt(Math.max(0.5, height * (1.0 - fraction) * 0.9)),
+                dropMaterial.createBlockData(), fraction));
         if (progress < required) {
-            shrinkTo(keepCount(initialDisplays, required, progress));
-            messages.progress(player, progress, required);
+            scheduleShrink(keepCount(initialDisplays, required, progress));
+            bestEffort("progress message", () -> messages.progress(player, progress, required));
+            return false;
+        }
+        if (completionActorId == null) completionActorId = player.getUniqueId();
+
+        if (!lifecycle.beginCompletion()) return lifecycle.terminal();
+        try {
+            dropRemainingYield(completionActorId);
+            lifecycle.complete();
+            requestCleanup();
+        } catch (RuntimeException | LinkageError failure) {
+            lifecycle.retryCompletion();
+            despawnAtMillis = Long.MAX_VALUE;
+            debug.warn("trunk yield journal commit deferred; remaining logs=" + yield.remaining());
             return false;
         }
 
-        if (!lifecycle.beginCompletion()) return lifecycle.terminal();
-        boolean cleanup = true;
-        try {
-            dropRemainingYield();
-            int xp = cfg.xpFor(totalYield);
-            xpBridge.grant(player, xp);
-            fx.chopBreak(center(), dropMaterial.createBlockData());
-            messages.yield(player, dropMaterial, totalYield, xp, xpBridge.present());
-            lifecycle.complete();
-        } catch (RuntimeException | LinkageError failure) {
-            int remaining = yield.remaining();
-            if (remaining > 0 && lifecycle.retryCompletion()) {
-                cleanup = false;
-                despawnAtMillis = Long.MAX_VALUE;
-                debug.warn("trunk yield delivery deferred; remaining logs=" + remaining);
-                return false;
-            }
-            lifecycle.fail();
-            debug.warn("trunk completion failed; recovering remaining yield: " + failure.getClass().getSimpleName());
-        } finally {
-            if (cleanup) cleanupEntitiesAndBudget();
-        }
+        int xp = cfg.xpFor(totalYield);
+        bestEffort("completion XP", () -> xpBridge.grant(player, xp));
+        bestEffort("completion effect", () -> fx.chopBreak(center(), dropMaterial.createBlockData()));
+        bestEffort("completion message",
+                () -> messages.yield(player, dropMaterial, totalYield, xp, xpBridge.present()));
         return true;
     }
 
@@ -180,39 +223,43 @@ final class FelledTrunk {
         } catch (RuntimeException | LinkageError failure) {
             debug.warn("trunk expiry effect failed: " + failure.getClass().getSimpleName());
         } finally {
-            cleanupEntitiesAndBudget();
+            requestCleanup();
         }
     }
 
     synchronized void deferOnShutdown(FelledTrunkStore store) {
-        if (!lifecycle.fail()) return;
+        if (lifecycle.terminal()) return;
         int remaining = yield.remaining();
-        boolean deferred = false;
-        try {
-            deferred = remaining == 0 || store.deferYield(world, center(), dropMaterial, yield, reservation);
-            if (remaining > 0) {
-                debug.warn((deferred ? "persisting " : "could not persist ") + remaining
-                        + " pending logs during plugin shutdown");
-            }
-        } finally {
-            cleanupEntities(deferred && remaining > 0);
+        boolean retained = remaining == 0 || store.retainYield(recoveryActorId(), world, yieldLocation,
+                dropMaterial, yield, recoveryReservation);
+        if (!retained) {
+            debug.warn("could not retain " + remaining + " pending logs during plugin shutdown");
+            return;
         }
+        if (!lifecycle.fail()) return;
+        if (remaining > 0) debug.warn("retained " + remaining + " pending logs during plugin shutdown");
+        cleanupEntitiesNow();
     }
 
     synchronized boolean deferCompletedYield(FelledTrunkStore store, String reason) {
         int remaining = yield.remaining();
         if (progress < required || remaining == 0 || !lifecycle.is(FellLifecycle.State.LANDED)) return false;
-        if (!lifecycle.fail()) return false;
-        boolean deferred = false;
-        try {
-            deferred = store.deferYield(world, center(), dropMaterial, yield, reservation);
-            debug.warn((deferred ? "moved completed trunk yield to recovery queue after "
-                    : "could not retain completed trunk yield after ") + reason
+        boolean retained = store.retainYield(recoveryActorId(), world, yieldLocation, dropMaterial, yield,
+                recoveryReservation);
+        if (!retained) {
+            debug.warn("could not retain completed trunk yield after " + reason
                     + "; remaining logs=" + remaining);
-            return true;
-        } finally {
-            cleanupEntities(deferred);
+            return false;
         }
+        if (!lifecycle.fail()) return false;
+        debug.warn("moved completed trunk yield to recovery queue after " + reason
+                + "; remaining logs=" + remaining);
+        requestCleanup();
+        return true;
+    }
+
+    synchronized boolean needsCompletedYieldRecovery() {
+        return progress >= required && !yield.empty() && lifecycle.is(FellLifecycle.State.LANDED);
     }
 
     static int keepCount(int displays, int required, int progress) {
@@ -228,16 +275,38 @@ final class FelledTrunk {
         return new Location(world, baseX + dirX * distance, baseY + 0.6, baseZ + dirZ * distance);
     }
 
-    private void dropRemainingYield() {
-        int stackIndex = 0;
-        int amount;
-        while ((amount = yield.nextStack()) > 0) {
-            double distance = Math.min(height - 0.5, 1.0 + stackIndex * 2.0);
-            int delivered = ItemDelivery.tryDeliver(world, pointAt(Math.max(0.5, distance)),
-                    new ItemStack(dropMaterial, amount));
-            if (delivered > 0) yield.delivered(delivered);
-            if (delivered < amount) throw new IllegalStateException("item delivery was rejected");
-            stackIndex++;
+    private void dropRemainingYield(UUID actorId) {
+        if (yield.empty()) return;
+        if (!store.deferYield(actorId, world, yieldLocation, dropMaterial, yield,
+                recoveryReservation)) {
+            throw new IllegalStateException("durable item-delivery queue rejected yield");
+        }
+    }
+
+    private UUID recoveryActorId() {
+        return completionActorId == null ? owner : completionActorId;
+    }
+
+    private synchronized void scheduleShrink(int keep) {
+        desiredKeep = Math.min(desiredKeep, Math.max(0, keep));
+        if (shrinkQueued || cleanupRequested) return;
+        int target = desiredKeep;
+        int units = removalCount(target);
+        if (units <= 0) return;
+        shrinkQueued = true;
+        if (!workLimiter.enqueueReserved(units, () -> runShrink(target), queueReservation)) {
+            shrinkQueued = false;
+            throw new IllegalStateException("paced trunk shrink admission was lost");
+        }
+    }
+
+    private synchronized void runShrink(int keep) {
+        shrinkTo(keep);
+        shrinkQueued = false;
+        if (cleanupRequested) {
+            enqueueCleanup();
+        } else if (desiredKeep < displays.size()) {
+            scheduleShrink(desiredKeep);
         }
     }
 
@@ -258,18 +327,55 @@ final class FelledTrunk {
         }
     }
 
-    private void cleanupEntitiesAndBudget() {
-        cleanupEntities(false);
+    private int removalCount(int keep) {
+        int normalized = Math.max(0, Math.min(keep, displays.size()));
+        int count = displays.size() - normalized;
+        double keptLength = height * normalized / (double) initialDisplays;
+        for (int index = hitboxes.size() - 1; index > 0; index--) {
+            if (hitboxes.get(index).dist > keptLength + 1.0) count++;
+        }
+        return count;
     }
 
-    private void cleanupEntities(boolean keepReservation) {
+    private synchronized void requestCleanup() {
+        cleanupRequested = true;
+        if (!shrinkQueued) enqueueCleanup();
+    }
+
+    private void enqueueCleanup() {
+        int units = displays.size() + hitboxes.size();
+        if (units <= 0) {
+            closeBudgets();
+            return;
+        }
+        if (!workLimiter.enqueueReserved(units, this::cleanupEntitiesNow, queueReservation)) {
+            debug.warn("paced trunk cleanup admission was lost; tagged-entity purge remains the backstop");
+            closeBudgets();
+        }
+    }
+
+    private synchronized void cleanupEntitiesNow() {
         try {
             for (BlockDisplay display : displays) removeBestEffort(display);
             displays.clear();
             for (Hitbox hitbox : new ArrayList<>(hitboxes)) removeBestEffort(hitbox.entity);
             hitboxes.clear();
         } finally {
-            if (!keepReservation) reservation.close();
+            closeBudgets();
+        }
+    }
+
+    private void closeBudgets() {
+        reservation.close();
+        recoveryReservation.close();
+        queueReservation.close();
+    }
+
+    private void bestEffort(String action, Runnable runnable) {
+        try {
+            runnable.run();
+        } catch (RuntimeException | LinkageError failure) {
+            debug.warn(action + " failed after durable completion: " + failure.getClass().getSimpleName());
         }
     }
 
