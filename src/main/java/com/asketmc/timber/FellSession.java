@@ -307,7 +307,7 @@ final class FellSession {
             } catch (CrushQueryLimit exhausted) {
                 distance = span + 1.0;
             }
-            if (visited >= cfg.maxCrushCandidates || !limiter.crushTimeAvailable()) {
+            if (!limiter.crushTimeAvailable()) {
                 distance = span + 1.0;
             }
             return CrushDispatcher.Step.PROGRESS;
