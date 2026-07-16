@@ -453,8 +453,11 @@ jobs:
              and .status == "listed"
              and (.version_type == "release" or .version_type == "beta" or .version_type == "alpha")
              and (.featured == (.version_type == "release"))
-             and (.game_versions | index("1.20.6") != null)
-             and (.game_versions | all(.[]; test("^(1\\.20\\.6|1\\.21(\\.[0-9]+)?)$")))' \
+             and .game_versions == [
+               "1.20", "1.20.1", "1.20.2", "1.20.3", "1.20.4", "1.20.5", "1.20.6",
+               "1.21", "1.21.1", "1.21.2", "1.21.3", "1.21.4", "1.21.5",
+               "1.21.6", "1.21.7", "1.21.8", "1.21.9", "1.21.10", "1.21.11"
+             ]' \
             "${metadata}/payload.json" >/dev/null
           cmp -s "${metadata}/changelog.md" \
             <(jq -r '.changelog' "${metadata}/payload.json")
