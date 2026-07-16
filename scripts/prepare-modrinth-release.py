@@ -56,8 +56,6 @@ def validate_config(config: Any) -> dict[str, Any]:
         "project_id",
         "project_slug",
         "display_name",
-        "game_version_min",
-        "game_version_max_exclusive",
         "compatibility_label",
         "release_notes_directory",
     )
@@ -74,21 +72,24 @@ def validate_config(config: Any) -> dict[str, Any]:
         or len(loaders) != len(set(loaders))
     ):
         raise PreparationError("loaders must be a non-empty list of unique names")
-    minimum = parse_game_version(config["game_version_min"])
-    maximum = parse_game_version(config["game_version_max_exclusive"])
-    if minimum >= maximum:
-        raise PreparationError("game version range must be non-empty")
+    game_versions = config.get("game_versions")
+    if (
+        not isinstance(game_versions, list)
+        or not game_versions
+        or any(not isinstance(version, str) or not version for version in game_versions)
+        or len(game_versions) != len(set(game_versions))
+    ):
+        raise PreparationError("game_versions must be a non-empty list of unique names")
+    parsed_versions = [parse_game_version(version) for version in game_versions]
+    if parsed_versions != sorted(parsed_versions):
+        raise PreparationError("game_versions must be in ascending Minecraft version order")
     return config
 
 
-def select_game_versions(
-    entries: Any, minimum_text: str, maximum_text: str
-) -> list[str]:
+def select_game_versions(entries: Any, configured: list[str]) -> list[str]:
     if not isinstance(entries, list):
         raise PreparationError("Modrinth game-version response must be a JSON array")
-    minimum = parse_game_version(minimum_text)
-    maximum = parse_game_version(maximum_text)
-    selected: dict[tuple[int, int, int], str] = {}
+    available: set[str] = set()
     for entry in entries:
         if not isinstance(entry, dict) or entry.get("version_type") != "release":
             continue
@@ -96,16 +97,17 @@ def select_game_versions(
         if not isinstance(value, str):
             continue
         try:
-            numeric = parse_game_version(value)
+            parse_game_version(value)
         except PreparationError:
             continue
-        if minimum <= numeric < maximum:
-            selected[numeric] = value
-    if minimum not in selected:
+        available.add(value)
+    missing = [version for version in configured if version not in available]
+    if missing:
         raise PreparationError(
-            f"Modrinth does not currently advertise required baseline {minimum_text}"
+            "Modrinth does not currently advertise configured stable versions: "
+            + ", ".join(missing)
         )
-    return [selected[key] for key in sorted(selected)]
+    return configured
 
 
 def validate_loaders(entries: Any, configured: list[str]) -> list[str]:
@@ -231,8 +233,7 @@ def prepare_candidate(
     config = validate_config(read_json(config_path))
     game_versions = select_game_versions(
         read_json(game_versions_path),
-        config["game_version_min"],
-        config["game_version_max_exclusive"],
+        config["game_versions"],
     )
     loaders = validate_loaders(read_json(loaders_path), config["loaders"])
     version_type = classify_version_type(version, marked_prerelease)

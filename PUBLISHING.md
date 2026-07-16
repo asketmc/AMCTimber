@@ -73,10 +73,11 @@ Enter the token at the secure prompt. Never put it in a command argument, commit
 workflow log. If the credential is missing or expired, GitHub Release publication remains complete and
 the Modrinth job fails explicitly; replace the Environment secret and rerun the failed jobs.
 
-Public channel metadata is versioned in `.github/modrinth.json`. Stable Minecraft releases in the
-configured `1.20.6 <= version < 1.22` range are selected automatically, while snapshots and unsupported
-loaders are rejected. Modrinth has no Pufferfish loader tag, so releases declare Paper and Purpur; Folia
-is intentionally excluded because it is not supported.
+Public channel metadata is versioned in `.github/modrinth.json`. The exact stable Modrinth tags for every
+`1.20.x` release and every `1.21.x` release through `1.21.11` are validated against the live API before
+publication. Snapshots, `1.21.12+`, `1.22+`, and unsupported loaders are rejected until the reviewed
+configuration is intentionally changed. Modrinth has no Pufferfish loader tag, so releases declare Paper
+and Purpur; Folia is intentionally excluded because it is not supported.
 
 Release notes are rendered from the exact `CHANGELOG.md` version section with a consistent compatibility,
 verification, and upgrade panel. For a richer player-facing release, add `docs/releases/x.y.z.md` before

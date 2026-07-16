@@ -162,6 +162,8 @@ def main() -> int:
         "include_changelog=false",
         "Authorization: ${MODRINTH_TOKEN}",
         'and .loaders == ["paper", "purpur"]',
+        "and .game_versions == [",
+        '"1.21.10", "1.21.11"',
         "already-present",
         "modrinth-readback.json",
     ):
@@ -199,8 +201,27 @@ def main() -> int:
         "project_id": "ri1Ibgnf",
         "project_slug": "amctimber",
         "loaders": ["paper", "purpur"],
-        "game_version_min": "1.20.6",
-        "game_version_max_exclusive": "1.22",
+        "game_versions": [
+            "1.20",
+            "1.20.1",
+            "1.20.2",
+            "1.20.3",
+            "1.20.4",
+            "1.20.5",
+            "1.20.6",
+            "1.21",
+            "1.21.1",
+            "1.21.2",
+            "1.21.3",
+            "1.21.4",
+            "1.21.5",
+            "1.21.6",
+            "1.21.7",
+            "1.21.8",
+            "1.21.9",
+            "1.21.10",
+            "1.21.11",
+        ],
     }
     for field, expected in expected_modrinth_config.items():
         if modrinth_config.get(field) != expected:

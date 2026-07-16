@@ -20,12 +20,31 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 
+SUPPORTED_VERSIONS = [
+    "1.20",
+    "1.20.1",
+    "1.20.2",
+    "1.20.3",
+    "1.20.4",
+    "1.20.5",
+    "1.20.6",
+    "1.21",
+    "1.21.1",
+    "1.21.2",
+    "1.21.3",
+    "1.21.4",
+    "1.21.5",
+    "1.21.6",
+    "1.21.7",
+    "1.21.8",
+    "1.21.9",
+    "1.21.10",
+    "1.21.11",
+]
 GAME_VERSIONS = [
-    {"version": "1.20.5", "version_type": "release"},
-    {"version": "1.20.6", "version_type": "release"},
-    {"version": "1.21", "version_type": "release"},
-    {"version": "1.21.1", "version_type": "release"},
+    *({"version": version, "version_type": "release"} for version in SUPPORTED_VERSIONS),
     {"version": "1.21.12-pre1", "version_type": "snapshot"},
+    {"version": "1.21.12", "version_type": "release"},
     {"version": "1.22", "version_type": "release"},
 ]
 LOADERS = [
@@ -39,13 +58,14 @@ LOADERS = [
 class ModrinthReleaseTests(unittest.TestCase):
     def test_selects_only_supported_stable_range(self) -> None:
         self.assertEqual(
-            ["1.20.6", "1.21", "1.21.1"],
-            MODULE.select_game_versions(GAME_VERSIONS, "1.20.6", "1.22"),
+            SUPPORTED_VERSIONS,
+            MODULE.select_game_versions(GAME_VERSIONS, SUPPORTED_VERSIONS),
         )
 
-    def test_rejects_missing_compatibility_baseline(self) -> None:
-        with self.assertRaisesRegex(MODULE.PreparationError, "required baseline"):
-            MODULE.select_game_versions(GAME_VERSIONS[2:], "1.20.6", "1.22")
+    def test_rejects_missing_configured_stable_version(self) -> None:
+        without_120 = [entry for entry in GAME_VERSIONS if entry["version"] != "1.20"]
+        with self.assertRaisesRegex(MODULE.PreparationError, "configured stable versions"):
+            MODULE.select_game_versions(without_120, SUPPORTED_VERSIONS)
 
     def test_validates_plugin_loader_tags(self) -> None:
         self.assertEqual(
@@ -103,7 +123,8 @@ class ModrinthReleaseTests(unittest.TestCase):
             payload = json.loads((output / "payload.json").read_text(encoding="utf-8"))
             self.assertEqual("ri1Ibgnf", payload["project_id"])
             self.assertEqual(["paper", "purpur"], payload["loaders"])
-            self.assertEqual(["1.20.6", "1.21", "1.21.1"], payload["game_versions"])
+            self.assertEqual(SUPPORTED_VERSIONS, payload["game_versions"])
+            self.assertNotIn("1.21.12", payload["game_versions"])
             self.assertEqual("server_only", payload["environment"])
             self.assertTrue(payload["featured"])
             self.assertIn("# 🌲 AMCTimber 1.0.9", payload["changelog"])
