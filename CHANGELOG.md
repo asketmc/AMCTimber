@@ -5,6 +5,13 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+### Added
+
+- Publish each completed GitHub Release to Modrinth through a least-privilege, idempotent API handoff.
+  The workflow downloads the exact signed GitHub Release JAR, verifies its checksum and tag ancestry,
+  selects current supported Minecraft tags, renders polished Markdown release notes, and verifies the
+  Modrinth API readback without exposing the publication token to build or repository code.
+
 ## [1.0.9] - 2026-07-16
 
 ### Fixed

@@ -45,6 +45,10 @@ This plugin is public-source and not obfuscated. Release jars are built by GitHu
 source. Each release includes SHA256 checksums, SPDX/CycloneDX SBOMs, Sigstore bundles, GitHub artifact
 attestations, and a jar safety report.
 
+Modrinth versions are published automatically only after that signed GitHub release is complete. The
+publisher re-downloads the exact GitHub asset, verifies its checksum and tag identity, refuses conflicting
+existing versions, and confirms the resulting Modrinth file hash through an API readback.
+
 The heuristic jar-hygiene gate is configured to fail on native binaries, scripts, nested jars, or shaded
 signature metadata. Its pass is scoped pattern evidence, not proof of safety. The plugin does not use
 native code, runtime downloads, auto-updaters, telemetry, or hidden external services. Optional

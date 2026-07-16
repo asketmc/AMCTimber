@@ -8,6 +8,7 @@
 [![SBOM](https://github.com/asketmc/AMCTimber/actions/workflows/sbom.yml/badge.svg?branch=main)](https://github.com/asketmc/AMCTimber/actions/workflows/sbom.yml)
 [![Reviewer Evidence](https://github.com/asketmc/AMCTimber/actions/workflows/reviewer-evidence.yml/badge.svg?branch=main)](https://github.com/asketmc/AMCTimber/actions/workflows/reviewer-evidence.yml)
 [![Release Security](https://github.com/asketmc/AMCTimber/actions/workflows/release.yml/badge.svg)](https://github.com/asketmc/AMCTimber/actions/workflows/release.yml)
+[![Modrinth](https://img.shields.io/modrinth/dt/ri1Ibgnf?logo=modrinth&label=Modrinth)](https://modrinth.com/plugin/amctimber)
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
 **Valheim-style tree felling for Paper, Purpur, and Pufferfish on Minecraft 1.20.6-1.21.x only.**

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import re
 import sys
@@ -80,9 +81,15 @@ def main() -> int:
     jobs = job_blocks(workflow)
     builder = jobs.get("build-and-smoke", "")
     publisher = jobs.get("publish", "")
+    modrinth_preparer = jobs.get("prepare-modrinth", "")
+    modrinth_publisher = jobs.get("publish-modrinth", "")
 
     if not builder or not publisher:
         errors.append("release workflow must have build-and-smoke and publish jobs")
+    if not modrinth_preparer or not modrinth_publisher:
+        errors.append(
+            "release workflow must have split prepare-modrinth and publish-modrinth jobs"
+        )
     for forbidden in ("contents: write", "id-token: write", "attestations: write"):
         if forbidden in builder:
             errors.append(f"unprivileged build job grants {forbidden}")
@@ -92,6 +99,7 @@ def main() -> int:
         "bash scripts/smoke-paper.sh",
         "refs/remotes/origin/main",
         "scripts/check-release-security.py",
+        "scripts/test-modrinth-release.py",
         "scripts/test-release-version.py",
     ):
         if required not in builder:
@@ -118,6 +126,88 @@ def main() -> int:
     ):
         if forbidden in publisher:
             errors.append(f"publisher executes forbidden build/runtime surface: {forbidden}")
+
+    for forbidden in (
+        "MODRINTH_TOKEN",
+        "contents: write",
+        "id-token: write",
+        "attestations: write",
+    ):
+        if forbidden in modrinth_preparer:
+            errors.append(f"unprivileged Modrinth preparer grants or reads {forbidden}")
+    for required in (
+        "needs: [build-and-smoke, publish]",
+        "contents: read",
+        "persist-credentials: false",
+        "scripts/prepare-modrinth-release.py",
+        "/tag/game_version",
+        "/tag/loader",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "candidate-metadata.json",
+        "payload_sha256",
+        "changelog_sha256",
+    ):
+        if required not in modrinth_preparer:
+            errors.append(f"unprivileged Modrinth preparer is missing {required}")
+    for required in (
+        "needs: [build-and-smoke, publish, prepare-modrinth]",
+        "actions: read",
+        "contents: read",
+        "name: modrinth",
+        "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+        "EXPECTED_PROJECT_ID: ri1Ibgnf",
+        "gh release download",
+        "sha256sum",
+        "sha512sum",
+        "include_changelog=false",
+        "Authorization: ${MODRINTH_TOKEN}",
+        'and .loaders == ["paper", "purpur"]',
+        "already-present",
+        "modrinth-readback.json",
+    ):
+        if required not in modrinth_publisher:
+            errors.append(f"privileged Modrinth publisher is missing {required}")
+    for forbidden in (
+        "actions/checkout@",
+        "actions/setup-java@",
+        "contents: write",
+        "id-token: write",
+        "attestations: write",
+        "mvn ",
+        "python",
+        "bash scripts/",
+        "java -jar",
+    ):
+        if forbidden in modrinth_publisher:
+            errors.append(
+                f"privileged Modrinth publisher executes forbidden surface: {forbidden}"
+            )
+    token_reference = "${{ secrets.MODRINTH_TOKEN }}"
+    if modrinth_publisher.count(token_reference) != 2:
+        errors.append(
+            "Modrinth token must be scoped only to credential preflight and API publication"
+        )
+
+    try:
+        modrinth_config = json.loads(
+            (ROOT / ".github" / "modrinth.json").read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError) as error:
+        errors.append(f"cannot read .github/modrinth.json: {error}")
+        modrinth_config = {}
+    expected_modrinth_config = {
+        "project_id": "ri1Ibgnf",
+        "project_slug": "amctimber",
+        "loaders": ["paper", "purpur"],
+        "game_version_min": "1.20.6",
+        "game_version_max_exclusive": "1.22",
+    }
+    for field, expected in expected_modrinth_config.items():
+        if modrinth_config.get(field) != expected:
+            errors.append(
+                f"Modrinth configuration {field}={modrinth_config.get(field)!r}, "
+                f"expected {expected!r}"
+            )
 
     root = ET.parse(ROOT / "pom.xml").getroot()
     properties = next(
@@ -211,7 +301,8 @@ def main() -> int:
         return 1
     print(
         "[PASS] release build privileges, tag ancestry, immutable Paper API, "
-        "repository ownership, and exact verification identity"
+        "repository ownership, exact verification identity, and least-privilege "
+        "Modrinth handoff"
     )
     return 0
 

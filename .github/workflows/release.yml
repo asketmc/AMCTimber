@@ -54,6 +54,7 @@ jobs:
       - name: Check release security policy
         run: |
           python3 scripts/check-release-security.py
+          python3 scripts/test-modrinth-release.py
           python3 scripts/test-release-version.py
       - name: Build release jar
         run: mvn -B -ntp clean verify
@@ -253,3 +254,328 @@ jobs:
             'validated-release/jar-safety-report.txt.sigstore.json'
           )
           gh release upload "${RELEASE_TAG}" "${assets[@]}" --repo "${GITHUB_REPOSITORY}"
+
+  prepare-modrinth:
+    name: Prepare Modrinth page (unprivileged)
+    needs: [build-and-smoke, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact release tag
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.build-and-smoke.outputs.tag }}
+      - name: Revalidate exact published source
+        env:
+          EXPECTED_COMMIT: ${{ needs.build-and-smoke.outputs.commit }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.build-and-smoke.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.build-and-smoke.outputs.version }}
+        run: |
+          set -euo pipefail
+          git fetch --force --no-tags origin \
+            "+refs/heads/main:refs/remotes/origin/main"
+          git fetch --force origin \
+            "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+          actual_version="$(bash scripts/verify-release-version.sh \
+            "refs/tags/${RELEASE_TAG}" "${EXPECTED_COMMIT}" refs/remotes/origin/main)"
+          [[ "${actual_version}" == "${RELEASE_VERSION}" ]]
+          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}")"
+          [[ "$(jq -r .draft <<< "${release_json}")" == 'false' ]]
+          [[ "$(jq -r .tag_name <<< "${release_json}")" == "${RELEASE_TAG}" ]]
+      - name: Fetch current Modrinth compatibility tags
+        env:
+          MODRINTH_API_BASE: https://api.modrinth.com/v2
+          USER_AGENT: asketmc/AMCTimber-release-automation/1.0 (https://github.com/asketmc/AMCTimber)
+        run: |
+          set -euo pipefail
+          mkdir -p modrinth-api
+          curl --silent --show-error --fail-with-body \
+            --retry 4 --retry-all-errors --retry-delay 2 \
+            --connect-timeout 10 --max-time 60 \
+            --header "User-Agent: ${USER_AGENT}" \
+            "${MODRINTH_API_BASE}/tag/game_version" \
+            --output modrinth-api/game-versions.json
+          curl --silent --show-error --fail-with-body \
+            --retry 4 --retry-all-errors --retry-delay 2 \
+            --connect-timeout 10 --max-time 60 \
+            --header "User-Agent: ${USER_AGENT}" \
+            "${MODRINTH_API_BASE}/tag/loader" \
+            --output modrinth-api/loaders.json
+      - name: Render polished Modrinth metadata
+        env:
+          IS_PRERELEASE: ${{ github.event.release.prerelease }}
+          RELEASE_TAG: ${{ needs.build-and-smoke.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.build-and-smoke.outputs.version }}
+        run: |
+          set -euo pipefail
+          prerelease_args=()
+          if [[ "${IS_PRERELEASE}" == 'true' ]]; then
+            prerelease_args+=(--prerelease)
+          fi
+          python3 scripts/prepare-modrinth-release.py \
+            --version "${RELEASE_VERSION}" \
+            --tag "${RELEASE_TAG}" \
+            --game-versions modrinth-api/game-versions.json \
+            --loaders modrinth-api/loaders.json \
+            --output modrinth-metadata \
+            "${prerelease_args[@]}"
+      - name: Seal metadata handoff
+        run: |
+          set -euo pipefail
+          mapfile -t actual < <(
+            find modrinth-metadata -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort
+          )
+          expected=(candidate-metadata.json changelog.md payload.json)
+          diff -u \
+            <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort) \
+            <(printf '%s\n' "${actual[@]}")
+          [[ -z "$(find modrinth-metadata -type l -print -quit)" ]]
+          payload_sha="$(sha256sum modrinth-metadata/payload.json | awk '{print $1}')"
+          changelog_sha="$(sha256sum modrinth-metadata/changelog.md | awk '{print $1}')"
+          jq -e \
+            --arg payload_sha "${payload_sha}" \
+            --arg changelog_sha "${changelog_sha}" \
+            '.schema == "amctimber-modrinth-metadata-v1"
+             and .payload_sha256 == $payload_sha
+             and .changelog_sha256 == $changelog_sha' \
+            modrinth-metadata/candidate-metadata.json >/dev/null
+          cmp -s modrinth-metadata/changelog.md \
+            <(jq -r '.changelog' modrinth-metadata/payload.json)
+      - name: Upload sealed Modrinth metadata
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: modrinth-metadata-${{ needs.build-and-smoke.outputs.tag }}
+          path: modrinth-metadata/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-modrinth:
+    name: Publish verified JAR to Modrinth (privileged)
+    needs: [build-and-smoke, publish, prepare-modrinth]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: modrinth-${{ github.repository }}-${{ needs.build-and-smoke.outputs.tag }}
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: read
+    environment:
+      name: modrinth
+      url: ${{ steps.modrinth.outputs.version_url }}
+    steps:
+      - name: Require dedicated Modrinth credential
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+        run: |
+          if [[ -z "${MODRINTH_TOKEN}" ]]; then
+            echo 'MODRINTH_TOKEN is not configured in the modrinth GitHub Environment.' >&2
+            echo 'Create a Modrinth PAT with VERSION_CREATE only, then rerun failed jobs.' >&2
+            exit 1
+          fi
+      - name: Download sealed metadata handoff
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: modrinth-metadata-${{ needs.build-and-smoke.outputs.tag }}
+          path: ${{ runner.temp }}/modrinth-metadata
+      - name: Download exact GitHub Release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.build-and-smoke.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.build-and-smoke.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/github-release"
+          gh release download "${RELEASE_TAG}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --dir "${RUNNER_TEMP}/github-release" \
+            --pattern "AMCTimber-${RELEASE_VERSION}.jar" \
+            --pattern SHA256SUMS.txt
+      - name: Validate tag, metadata, and exact JAR
+        id: validate
+        env:
+          EXPECTED_COMMIT: ${{ needs.build-and-smoke.outputs.commit }}
+          EXPECTED_PROJECT_ID: ri1Ibgnf
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.build-and-smoke.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.build-and-smoke.outputs.version }}
+        run: |
+          set -euo pipefail
+          metadata="${RUNNER_TEMP}/modrinth-metadata"
+          release_dir="${RUNNER_TEMP}/github-release"
+          jar_name="AMCTimber-${RELEASE_VERSION}.jar"
+          jar="${release_dir}/${jar_name}"
+
+          [[ "${RELEASE_TAG}" == "v${RELEASE_VERSION}" ]]
+          [[ "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]]
+          [[ -f "${jar}" && -f "${release_dir}/SHA256SUMS.txt" ]]
+          [[ -z "$(find "${metadata}" "${release_dir}" -type l -print -quit)" ]]
+          mapfile -t metadata_files < <(
+            find "${metadata}" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort
+          )
+          expected_metadata=(candidate-metadata.json changelog.md payload.json)
+          diff -u \
+            <(printf '%s\n' "${expected_metadata[@]}" | LC_ALL=C sort) \
+            <(printf '%s\n' "${metadata_files[@]}")
+
+          payload_sha="$(sha256sum "${metadata}/payload.json" | awk '{print $1}')"
+          changelog_sha="$(sha256sum "${metadata}/changelog.md" | awk '{print $1}')"
+          jq -e \
+            --arg project "${EXPECTED_PROJECT_ID}" \
+            --arg tag "${RELEASE_TAG}" \
+            --arg version "${RELEASE_VERSION}" \
+            --arg payload_sha "${payload_sha}" \
+            --arg changelog_sha "${changelog_sha}" \
+            '.schema == "amctimber-modrinth-metadata-v1"
+             and .project_id == $project
+             and .project_slug == "amctimber"
+             and .tag == $tag
+             and .version == $version
+             and .loaders == ["paper", "purpur"]
+             and .payload_sha256 == $payload_sha
+             and .changelog_sha256 == $changelog_sha' \
+            "${metadata}/candidate-metadata.json" >/dev/null
+          jq -e \
+            --arg project "${EXPECTED_PROJECT_ID}" \
+            --arg version "${RELEASE_VERSION}" \
+            '.project_id == $project
+             and .version_number == $version
+             and .name == ("AMCTimber " + $version)
+             and .loaders == ["paper", "purpur"]
+             and .file_parts == ["file"]
+             and .primary_file == "file"
+             and .environment == "server_only"
+             and .status == "listed"
+             and (.version_type == "release" or .version_type == "beta" or .version_type == "alpha")
+             and (.featured == (.version_type == "release"))
+             and (.game_versions | index("1.20.6") != null)
+             and (.game_versions | all(.[]; test("^(1\\.20\\.6|1\\.21(\\.[0-9]+)?)$")))' \
+            "${metadata}/payload.json" >/dev/null
+          cmp -s "${metadata}/changelog.md" \
+            <(jq -r '.changelog' "${metadata}/payload.json")
+
+          expected_sha256="$(
+            awk -v target="${jar_name}" '
+              NF == 2 { name=$2; sub(/^\\*/, "", name); if (name == target) print $1 }
+            ' "${release_dir}/SHA256SUMS.txt"
+          )"
+          [[ "${expected_sha256}" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$(sha256sum "${jar}" | awk '{print $1}')" == "${expected_sha256}" ]]
+          jar_size="$(stat --format='%s' "${jar}")"
+          (( jar_size > 0 && jar_size <= 20971520 ))
+          jar_sha512="$(sha512sum "${jar}" | awk '{print $1}')"
+          printf 'jar=%s\n' "${jar}" >> "${GITHUB_OUTPUT}"
+          printf 'jar_sha256=%s\n' "${expected_sha256}" >> "${GITHUB_OUTPUT}"
+          printf 'jar_sha512=%s\n' "${jar_sha512}" >> "${GITHUB_OUTPUT}"
+
+          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}")"
+          [[ "$(jq -r .draft <<< "${release_json}")" == 'false' ]]
+          [[ "$(jq -r .tag_name <<< "${release_json}")" == "${RELEASE_TAG}" ]]
+          tag_commit="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${RELEASE_TAG}" --jq .sha)"
+          [[ "${tag_commit}" == "${EXPECTED_COMMIT}" ]]
+          comparison="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/compare/${EXPECTED_COMMIT}...main" --jq .status)"
+          [[ "${comparison}" == 'ahead' || "${comparison}" == 'identical' ]]
+      - name: Publish once and verify API readback
+        id: modrinth
+        env:
+          EXPECTED_PROJECT_ID: ri1Ibgnf
+          MODRINTH_API_BASE: https://api.modrinth.com/v2
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          RELEASE_TAG: ${{ needs.build-and-smoke.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.build-and-smoke.outputs.version }}
+          USER_AGENT: asketmc/AMCTimber-release-automation/${{ needs.build-and-smoke.outputs.version }} (https://github.com/asketmc/AMCTimber)
+        run: |
+          set -euo pipefail
+          metadata="${RUNNER_TEMP}/modrinth-metadata"
+          payload="${metadata}/payload.json"
+          jar="${{ steps.validate.outputs.jar }}"
+          expected_sha512="${{ steps.validate.outputs.jar_sha512 }}"
+          common=(
+            --silent --show-error --fail-with-body
+            --retry 4 --retry-all-errors --retry-delay 2
+            --connect-timeout 10 --max-time 120
+            --header "User-Agent: ${USER_AGENT}"
+          )
+
+          curl "${common[@]}" \
+            "${MODRINTH_API_BASE}/project/${EXPECTED_PROJECT_ID}/version?include_changelog=false" \
+            --output "${RUNNER_TEMP}/modrinth-versions.json"
+          existing_count="$(jq \
+            --arg version "${RELEASE_VERSION}" \
+            '[.[] | select(.version_number == $version)] | length' \
+            "${RUNNER_TEMP}/modrinth-versions.json")"
+          if (( existing_count > 1 )); then
+            echo "More than one Modrinth version uses ${RELEASE_VERSION}; refusing to guess." >&2
+            exit 1
+          fi
+
+          status=published
+          if (( existing_count == 1 )); then
+            version_id="$(jq -r \
+              --arg version "${RELEASE_VERSION}" \
+              '.[] | select(.version_number == $version) | .id' \
+              "${RUNNER_TEMP}/modrinth-versions.json")"
+            curl "${common[@]}" \
+              "${MODRINTH_API_BASE}/version/${version_id}" \
+              --output "${RUNNER_TEMP}/modrinth-readback.json"
+            status=already-present
+          else
+            # Do not automatically retry this non-idempotent POST. If the response is lost
+            # after a successful create, a job rerun discovers and verifies that version.
+            curl --silent --show-error --fail-with-body \
+              --connect-timeout 10 --max-time 300 \
+              --header "User-Agent: ${USER_AGENT}" \
+              --header "Authorization: ${MODRINTH_TOKEN}" \
+              --form "data=<${payload};type=application/json" \
+              --form "file=@${jar};type=application/java-archive" \
+              "${MODRINTH_API_BASE}/version" \
+              --output "${RUNNER_TEMP}/modrinth-readback.json"
+            version_id="$(jq -r .id "${RUNNER_TEMP}/modrinth-readback.json")"
+            [[ "${version_id}" =~ ^[0-9A-Za-z]{8}$ ]]
+            curl "${common[@]}" \
+              "${MODRINTH_API_BASE}/version/${version_id}" \
+              --output "${RUNNER_TEMP}/modrinth-readback.json"
+          fi
+
+          jq -e \
+            --arg project "${EXPECTED_PROJECT_ID}" \
+            --arg version "${RELEASE_VERSION}" \
+            --arg sha512 "${expected_sha512}" \
+            --slurpfile desired "${payload}" \
+            '.project_id == $project
+             and .version_number == $version
+             and .name == $desired[0].name
+             and .changelog == $desired[0].changelog
+             and .version_type == $desired[0].version_type
+             and .featured == $desired[0].featured
+             and .status == $desired[0].status
+             and (.loaders | sort) == ($desired[0].loaders | sort)
+             and (.game_versions | sort) == ($desired[0].game_versions | sort)
+             and ([.files[] | select(.primary == true and .hashes.sha512 == $sha512)] | length) == 1' \
+            "${RUNNER_TEMP}/modrinth-readback.json" >/dev/null || {
+              echo 'Existing or newly created Modrinth version does not match the verified release.' >&2
+              exit 1
+            }
+
+          version_url="https://modrinth.com/plugin/amctimber/version/${version_id}"
+          printf 'version_id=%s\n' "${version_id}" >> "${GITHUB_OUTPUT}"
+          printf 'version_url=%s\n' "${version_url}" >> "${GITHUB_OUTPUT}"
+          printf 'status=%s\n' "${status}" >> "${GITHUB_OUTPUT}"
+          {
+            echo '## 🌲 Modrinth publication complete'
+            echo
+            echo '| Field | Verified value |'
+            echo '|---|---|'
+            echo "| Release | [AMCTimber ${RELEASE_VERSION}](${version_url}) |"
+            echo "| Result | \`${status}\` |"
+            echo "| GitHub source | [${RELEASE_TAG}](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}) |"
+            echo "| JAR SHA-256 | \`${{ steps.validate.outputs.jar_sha256 }}\` |"
+            echo '| Platforms | Paper · Purpur |'
+            echo '| Artifact | Exact signed GitHub Release JAR |'
+          } >> "${GITHUB_STEP_SUMMARY}"
