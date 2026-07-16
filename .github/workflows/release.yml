@@ -252,4 +252,4 @@ jobs:
             'validated-release/jar-safety-report.txt'
             'validated-release/jar-safety-report.txt.sigstore.json'
           )
-          gh release upload "${RELEASE_TAG}" "${assets[@]}"
+          gh release upload "${RELEASE_TAG}" "${assets[@]}" --repo "${GITHUB_REPOSITORY}"

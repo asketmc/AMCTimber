@@ -105,6 +105,7 @@ def main() -> int:
         "${{ runner.temp }}/release-candidate",
         "compare/${EXPECTED_COMMIT}...main",
         "sha256sum -c SHA256SUMS.txt",
+        'gh release upload "${RELEASE_TAG}" "${assets[@]}" --repo "${GITHUB_REPOSITORY}"',
     ):
         if required not in publisher:
             errors.append(f"publisher job is missing {required}")
