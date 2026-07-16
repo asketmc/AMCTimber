@@ -9,9 +9,9 @@ This is verification evidence, not a formal security certification.
 
 ## Expected Assets
 
-For the current release tag `v1.0.8`, expect:
+For the current release tag `v1.0.9`, expect:
 
-- `AMCTimber-1.0.8.jar`
+- `AMCTimber-1.0.9.jar`
 - `SHA256SUMS.txt`
 - `sbom.spdx.json`
 - `sbom.cdx.json`
@@ -30,7 +30,7 @@ sha256sum -c SHA256SUMS.txt --ignore-missing
 Windows PowerShell:
 
 ```powershell
-$jar = "AMCTimber-1.0.8.jar"
+$jar = "AMCTimber-1.0.9.jar"
 $expected = (Select-String -Path SHA256SUMS.txt -Pattern $jar).Line.Split(" ")[0].ToLowerInvariant()
 $actual = (Get-FileHash -Algorithm SHA256 $jar).Hash.ToLowerInvariant()
 if ($actual -ne $expected) { throw "checksum mismatch" }
@@ -42,10 +42,10 @@ Install `cosign`, then verify a downloaded jar and its bundle:
 
 ```bash
 cosign verify-blob \
-  --bundle AMCTimber-1.0.8.jar.sigstore.json \
-  --certificate-identity 'https://github.com/asketmc/AMCTimber/.github/workflows/release.yml@refs/tags/v1.0.8' \
+  --bundle AMCTimber-1.0.9.jar.sigstore.json \
+  --certificate-identity 'https://github.com/asketmc/AMCTimber/.github/workflows/release.yml@refs/tags/v1.0.9' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  AMCTimber-1.0.8.jar
+  AMCTimber-1.0.9.jar
 ```
 
 Repeat for `SHA256SUMS.txt`, SBOMs, and `jar-safety-report.txt` if you need full release-asset coverage.
@@ -55,9 +55,9 @@ Repeat for `SHA256SUMS.txt`, SBOMs, and `jar-safety-report.txt` if you need full
 Install GitHub CLI and run:
 
 ```bash
-gh attestation verify AMCTimber-1.0.8.jar \
+gh attestation verify AMCTimber-1.0.9.jar \
   --repo asketmc/AMCTimber \
-  --source-ref refs/tags/v1.0.8
+  --source-ref refs/tags/v1.0.9
 ```
 
 Both commands deliberately name the exact requested tag. Do not replace it with a `v.*` identity: that
