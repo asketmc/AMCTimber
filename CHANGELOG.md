@@ -5,6 +5,13 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+## [1.0.9] - 2026-07-16
+
+### Fixed
+
+- Publish release assets from the isolated signing job with an explicit repository scope, and enforce
+  that requirement in the release-security regression gate.
+
 ## [1.0.8] - 2026-07-16
 
 ### Security
@@ -159,6 +166,7 @@ First public release, extracted and generalised from the internal asketmc build.
 - `/amctimber selftest`.
 - JUnit 5 server-free unit test suite.
 
+[1.0.9]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.9
 [1.0.8]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.8
 [1.0.7]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.7
 [1.0.6]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.6
