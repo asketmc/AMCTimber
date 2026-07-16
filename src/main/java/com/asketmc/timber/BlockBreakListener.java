@@ -125,9 +125,9 @@ final class BlockBreakListener implements Listener {
             if (trunk.hintReady(player.getUniqueId())) trunk.ownerLocked(player);
             return true;
         }
+        if (!trunk.chopReady(player.getUniqueId())) return true;
         int progress = TimberConfig.progressPerHit(hand.getEnchantmentLevel(Enchantment.EFFICIENCY));
         if (!trunk.authorized(player, interaction, progress)) return true;
-        if (!trunk.chopReady(player.getUniqueId())) return true;
         if (cfg.durabilityPerChopHit > 0 && player.getGameMode() != GameMode.CREATIVE) {
             player.damageItemStack(EquipmentSlot.HAND, cfg.durabilityPerChopHit);
         }

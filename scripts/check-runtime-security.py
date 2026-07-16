@@ -33,6 +33,10 @@ if drop_guard < 0 or scan_call < 0 or drop_guard > scan_call:
     errors.append("BlockBreakEvent drop policy must be consumed before tree scanning")
 if "EventPriority.MONITOR" not in listener or "event.isCancelled()" not in listener:
     errors.append("fell commit must consume final ordinary-priority cancellation state")
+cooldown_guard = listener.find("trunk.chopReady")
+trunk_reauthorization = listener.find("trunk.authorized")
+if cooldown_guard < 0 or trunk_reauthorization < 0 or cooldown_guard > trunk_reauthorization:
+    errors.append("trunk cooldown must reject spam before expensive protection reauthorization")
 
 session = source("FellSession.java")
 if "living.damage(damage, ownerPlayer)" not in session or "living.damage(damage);" in session:
@@ -63,8 +67,16 @@ if "protection.active()" not in source("PendingYield.java"):
     errors.append("actorless legacy delivery must fail closed while protection is active")
 if "material.isItem()" not in source("PendingYieldFile.java"):
     errors.append("recovery material validation must reject non-item block states")
-if "stagedYields" not in source("FelledTrunkStore.java"):
+store = source("FelledTrunkStore.java")
+if "stagedYields" not in store:
     errors.append("terminal yield must remain non-deliverable until its journal checkpoint succeeds")
+delivery_tick = store.find("void tickYieldDelivery()")
+delivery_retry = store.find("retryPendingYields(", delivery_tick)
+delivery_checkpoint = store.find("persistRecoveryState()", delivery_retry)
+next_method = store.find("\n    void ", delivery_retry)
+if (delivery_tick < 0 or delivery_retry < 0 or delivery_checkpoint < 0
+        or (next_method >= 0 and delivery_checkpoint > next_method)):
+    errors.append("paced item delivery must checkpoint acknowledged drops in the same tick")
 
 if errors:
     for error in errors:

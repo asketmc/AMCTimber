@@ -235,6 +235,10 @@ final class FelledTrunkStore {
     void tickYieldDelivery() {
         promoteDormantYields(deliveryStepsPerTick);
         retryPendingYields(System.currentTimeMillis(), false, deliveryStepsPerTick);
+        // Checkpoint acknowledged world drops in the same delivery tick. Deferring this to the
+        // one-second sweep would leave a much larger crash window in which restored ledgers could
+        // repeat items that already entered the world.
+        if (recoveryStateDirty) persistRecoveryState();
     }
 
     void sweep() {
@@ -321,7 +325,6 @@ final class FelledTrunkStore {
             }
         }
         if (changed) recoveryStateDirty = true;
-        // Progress is checkpointed by the one-second sweep, avoiding a full journal rewrite every tick.
     }
 
     private void promoteDormantYields(int maxPromotions) {
