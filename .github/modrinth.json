@@ -1,0 +1,13 @@
+{
+  "project_id": "ri1Ibgnf",
+  "project_slug": "amctimber",
+  "display_name": "AMCTimber",
+  "loaders": [
+    "paper",
+    "purpur"
+  ],
+  "game_version_min": "1.20.6",
+  "game_version_max_exclusive": "1.22",
+  "compatibility_label": "`1.20.6` and `1.21.x`",
+  "release_notes_directory": "docs/releases"
+}

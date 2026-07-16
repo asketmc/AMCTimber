@@ -28,6 +28,7 @@ jobs:
       - name: Check release security policy
         run: |
           python3 scripts/check-release-security.py
+          python3 scripts/test-modrinth-release.py
           python3 scripts/test-release-version.py
       - name: Build jar
         run: mvn -B -ntp clean verify

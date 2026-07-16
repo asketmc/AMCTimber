@@ -6,6 +6,10 @@ release-dry-run/
 dependency-reduced-pom.xml
 *.flattened-pom.xml
 
+# Python release tooling
+__pycache__/
+*.py[cod]
+
 # IDEs
 .idea/
 *.iml
