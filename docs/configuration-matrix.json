@@ -86,7 +86,7 @@
       "support": "supported",
       "system_smoke": "verified",
       "gameplay_e2e": "gap",
-      "post_deployment": "implemented",
+      "post_deployment": "verified",
       "evidence": [
         {
           "kind": "github_actions_run",
@@ -111,6 +111,14 @@
             "post_deployment"
           ],
           "path": ".github/workflows/post-release-runtime.yml"
+        },
+        {
+          "kind": "repository_receipt",
+          "label": "v1.0.9 post-release runtime receipt",
+          "covers": [
+            "post_deployment"
+          ],
+          "path": "docs/evidence/configuration-matrix/v1.0.9-post-release-runtime.json"
         }
       ]
     },
@@ -124,7 +132,7 @@
       "support": "supported",
       "system_smoke": "verified",
       "gameplay_e2e": "gap",
-      "post_deployment": "implemented",
+      "post_deployment": "verified",
       "evidence": [
         {
           "kind": "github_actions_run",
@@ -149,6 +157,14 @@
             "post_deployment"
           ],
           "path": ".github/workflows/post-release-runtime.yml"
+        },
+        {
+          "kind": "repository_receipt",
+          "label": "v1.0.9 post-release runtime receipt",
+          "covers": [
+            "post_deployment"
+          ],
+          "path": "docs/evidence/configuration-matrix/v1.0.9-post-release-runtime.json"
         }
       ]
     },
