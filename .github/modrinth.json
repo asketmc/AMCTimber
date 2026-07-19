@@ -7,12 +7,6 @@
     "purpur"
   ],
   "game_versions": [
-    "1.20",
-    "1.20.1",
-    "1.20.2",
-    "1.20.3",
-    "1.20.4",
-    "1.20.5",
     "1.20.6",
     "1.21",
     "1.21.1",
@@ -27,6 +21,6 @@
     "1.21.10",
     "1.21.11"
   ],
-  "compatibility_label": "`1.20.x` and `1.21.x` through `1.21.11`",
+  "compatibility_label": "`1.20.6` and `1.21.x` through `1.21.11`",
   "release_notes_directory": "docs/releases"
 }

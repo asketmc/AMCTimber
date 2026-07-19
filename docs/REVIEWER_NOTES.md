@@ -1,6 +1,6 @@
 # Reviewer Notes
 
-AMCTimber adds Valheim-style tree felling for Paper, Purpur, and Pufferfish 1.20.6-1.21.x only. These
+AMCTimber adds Valheim-style tree felling for Paper, Purpur, and Pufferfish 1.20.6-1.21.11 only. These
 notes are written for marketplace moderators and server administrators who want a concise review checklist.
 
 ## Runtime Behavior
@@ -74,6 +74,8 @@ The `Paper Runtime Smoke` workflow starts Paper 1.20.6 and the latest stable 1.2
 selftest, checks clean shutdown, and uploads exact-build logs. This is implemented evidence only for those
 Paper runs and checks; it does not establish Purpur/Pufferfish behavior, every 1.21 patch, or gameplay E2E.
 Manual `/amctimber selftest` logs likewise apply only to the exact server, jar, and run that produced them.
+The [configuration matrix](CONFIGURATION_MATRIX.md) is the canonical map from supported rows to system,
+gameplay-E2E, and post-deployment evidence, including explicit gaps and public metadata drift.
 
 ## Manual Review Notes
 

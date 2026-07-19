@@ -83,6 +83,7 @@ def main() -> int:
     publisher = jobs.get("publish", "")
     modrinth_preparer = jobs.get("prepare-modrinth", "")
     modrinth_publisher = jobs.get("publish-modrinth", "")
+    post_deployment = jobs.get("post-deployment-runtime", "")
 
     if not builder or not publisher:
         errors.append("release workflow must have build-and-smoke and publish jobs")
@@ -90,12 +91,16 @@ def main() -> int:
         errors.append(
             "release workflow must have split prepare-modrinth and publish-modrinth jobs"
         )
+    if not post_deployment:
+        errors.append("release workflow must have a post-deployment-runtime job")
     for forbidden in ("contents: write", "id-token: write", "attestations: write"):
         if forbidden in builder:
             errors.append(f"unprivileged build job grants {forbidden}")
     for required in (
         "contents: read",
         "mvn -B -ntp clean verify",
+        "scripts/check-configuration-matrix.py",
+        "scripts/test-configuration-matrix.py",
         "bash scripts/smoke-paper.sh",
         "refs/remotes/origin/main",
         "scripts/check-release-security.py",
@@ -126,6 +131,19 @@ def main() -> int:
     ):
         if forbidden in publisher:
             errors.append(f"publisher executes forbidden build/runtime surface: {forbidden}")
+
+    for required in (
+        "needs: [build-and-smoke, publish]",
+        "contents: read",
+        "persist-credentials: false",
+        "scripts/verify-published-release-runtime.sh",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+    ):
+        if required not in post_deployment:
+            errors.append(f"post-deployment runtime job is missing {required}")
+    for forbidden in ("contents: write", "id-token: write", "attestations: write"):
+        if forbidden in post_deployment:
+            errors.append(f"post-deployment runtime job grants {forbidden}")
 
     for forbidden in (
         "MODRINTH_TOKEN",
@@ -202,12 +220,6 @@ def main() -> int:
         "project_slug": "amctimber",
         "loaders": ["paper", "purpur"],
         "game_versions": [
-            "1.20",
-            "1.20.1",
-            "1.20.2",
-            "1.20.3",
-            "1.20.4",
-            "1.20.5",
             "1.20.6",
             "1.21",
             "1.21.1",

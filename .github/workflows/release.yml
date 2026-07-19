@@ -53,6 +53,8 @@ jobs:
           printf 'version=%s\n' "${version}" >> "${GITHUB_OUTPUT}"
       - name: Check release security policy
         run: |
+          python3 scripts/check-configuration-matrix.py
+          python3 scripts/test-configuration-matrix.py
           python3 scripts/check-release-security.py
           python3 scripts/test-modrinth-release.py
           python3 scripts/test-release-version.py
@@ -255,6 +257,38 @@ jobs:
           )
           gh release upload "${RELEASE_TAG}" "${assets[@]}" --repo "${GITHUB_REPOSITORY}"
 
+  post-deployment-runtime:
+    name: Post-deployment Paper runtime
+    needs: [build-and-smoke, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact release tag
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ needs.build-and-smoke.outputs.tag }}
+      - name: Set up JDK 21
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Download and execute the published release JAR
+        run: >-
+          bash scripts/verify-published-release-runtime.sh
+          "${{ needs.build-and-smoke.outputs.tag }}"
+          "post-release-evidence/${{ needs.build-and-smoke.outputs.tag }}"
+      - name: Upload post-release runtime evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: post-release-runtime-${{ needs.build-and-smoke.outputs.tag }}
+          path: post-release-evidence/${{ needs.build-and-smoke.outputs.tag }}/
+          if-no-files-found: error
+          retention-days: 30
+
   prepare-modrinth:
     name: Prepare Modrinth page (unprivileged)
     needs: [build-and-smoke, publish]
@@ -454,7 +488,7 @@ jobs:
              and (.version_type == "release" or .version_type == "beta" or .version_type == "alpha")
              and (.featured == (.version_type == "release"))
              and .game_versions == [
-               "1.20", "1.20.1", "1.20.2", "1.20.3", "1.20.4", "1.20.5", "1.20.6",
+               "1.20.6",
                "1.21", "1.21.1", "1.21.2", "1.21.3", "1.21.4", "1.21.5",
                "1.21.6", "1.21.7", "1.21.8", "1.21.9", "1.21.10", "1.21.11"
              ]' \

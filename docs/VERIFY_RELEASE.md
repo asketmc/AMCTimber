@@ -96,6 +96,14 @@ The `Paper Runtime Smoke` PR/push workflow tests the jar built in that workflow.
 `plugin_sha256`; match that value to the jar line in `SHA256SUMS.txt` before attaching the runtime evidence
 to a downloaded release.
 
+After publication, run the separate `Post-release Runtime Verification` workflow for the exact tag, or
+execute `bash scripts/verify-published-release-runtime.sh <tag> <output-dir>` locally. This downloads the
+public JAR and `SHA256SUMS.txt`, verifies the artifact identity, reruns both Paper endpoint smokes, requires
+a non-zero selftest, and emits `post-release-runtime-receipt.json`. Future releases run the same verifier
+automatically after the privileged publisher completes.
+
 These checks cover startup, built-in selftest, and clean shutdown only. They do not verify Purpur,
 Pufferfish, every 1.21 patch, or a full fell/chop/protection gameplay path. Manual logs are likewise scoped
 to the exact server software, Minecraft version, jar hash, and run that produced them.
+The canonical claim/evidence mapping is `docs/CONFIGURATION_MATRIX.md`; a workflow existing without a
+successful receipt is recorded as `implemented`, not `verified`.

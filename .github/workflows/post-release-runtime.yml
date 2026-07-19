@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: GPL-3.0-only
+
+name: Post-release Runtime Verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release tag to download and execute
+        required: true
+        default: v1.0.9
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  post-release-runtime:
+    name: Published JAR on Paper endpoints
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout verification harness
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Set up JDK 21
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Verify exact public release JAR at runtime
+        run: >-
+          bash scripts/verify-published-release-runtime.sh
+          "${{ inputs.tag }}"
+          "post-release-evidence/${{ inputs.tag }}"
+      - name: Publish receipt summary
+        if: success()
+        env:
+          RECEIPT: post-release-evidence/${{ inputs.tag }}/post-release-runtime-receipt.json
+        run: |
+          {
+            echo '## Post-release runtime receipt'
+            echo
+            echo '| Runtime | Minecraft | Build | Selftest | Result |'
+            echo '|---|---|---|---|---|'
+            jq -r '.environments[] | "| \(.server_software) | \(.minecraft_version) | \(.server_build) | \(.selftest_passed)/\(.selftest_total) | \(.result) |"' "$RECEIPT"
+            echo
+            echo "Artifact SHA-256: \`$(jq -r .artifact.sha256 "$RECEIPT")\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload post-release evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: post-release-runtime-${{ inputs.tag }}
+          path: post-release-evidence/${{ inputs.tag }}/
+          if-no-files-found: error
+          retention-days: 30

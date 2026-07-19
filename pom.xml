@@ -30,7 +30,7 @@
     <coverage.branch.minimum>0.70</coverage.branch.minimum>
     <mutation.threshold>70</mutation.threshold>
     <mutation.coverage.threshold>80</mutation.coverage.threshold>
-    <!-- Compiled against the OLDEST supported API so one jar runs 1.20.6 -> 1.21.x.
+    <!-- Compiled against the OLDEST supported API so one jar runs 1.20.6 -> 1.21.11.
          Version-specific symbols (new particles/materials) are resolved by name at runtime. -->
     <paper.version>1.20.6-R0.1-20241030.191541-127</paper.version>
   </properties>

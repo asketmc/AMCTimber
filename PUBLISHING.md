@@ -73,8 +73,8 @@ Enter the token at the secure prompt. Never put it in a command argument, commit
 workflow log. If the credential is missing or expired, GitHub Release publication remains complete and
 the Modrinth job fails explicitly; replace the Environment secret and rerun the failed jobs.
 
-Public channel metadata is versioned in `.github/modrinth.json`. The exact stable Modrinth tags for every
-`1.20.x` release and every `1.21.x` release through `1.21.11` are validated against the live API before
+Public channel metadata is versioned in `.github/modrinth.json`. The exact stable Modrinth tags for
+`1.20.6` and every `1.21.x` release through `1.21.11` are validated against the live API before
 publication. Snapshots, `1.21.12+`, `1.22+`, and unsupported loaders are rejected until the reviewed
 configuration is intentionally changed. Modrinth has no Pufferfish loader tag, so releases declare Paper
 and Purpur; Folia is intentionally excluded because it is not supported.
@@ -107,6 +107,7 @@ Moderator/reviewer package:
 - `qa-reports` CI artifact with JaCoCo, PIT, Surefire and P0 matrix evidence.
 - Paper 1.20.6 and latest stable 1.21 runtime-smoke logs. Purpur/Pufferfish compatibility is based on
   their Paper API compatibility unless separate runtime evidence is attached; Folia is not supported.
+- The evidence-backed configuration matrix and a post-deployment receipt for the exact public JAR.
 
 VirusTotal is only a weak external reputation signal. It should be presented as "hash X had no detections
 on date Y", not as proof that the plugin is safe.
