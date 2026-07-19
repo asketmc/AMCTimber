@@ -116,16 +116,41 @@ if [[ -n "$(git -C "$root" status --porcelain --untracked-files=no)" ]]; then
   harness_dirty=true
 fi
 harness_sha256="$(sha256sum "$script_dir/verify-published-release-runtime.sh" | awk '{print $1}')"
-smoke_sha256="$(sha256sum "$script_dir/smoke-paper.sh" | awk '{print $1}')"
+smoke_entrypoint="$script_dir/smoke-paper.sh"
+if [[ "${OS:-}" == "Windows_NT" ]]; then
+  for command_name in cygpath powershell.exe; do
+    if ! command -v "$command_name" >/dev/null 2>&1; then
+      echo "required Windows smoke command not found: $command_name" >&2
+      exit 2
+    fi
+  done
+  smoke_entrypoint="$script_dir/smoke-paper.ps1"
+fi
+smoke_sha256="$(sha256sum "$smoke_entrypoint" | awk '{print $1}')"
 java_version="$(java -version 2>&1 | head -n 1)"
 os_name="$(uname -s)"
 os_arch="$(uname -m)"
+
+run_smoke() {
+  local selector="$1"
+  local plugin_jar="$2"
+  local smoke_dir="$3"
+  if [[ "${OS:-}" == "Windows_NT" ]]; then
+    powershell.exe -NoProfile -ExecutionPolicy Bypass \
+      -File "$(cygpath -w "$smoke_entrypoint")" \
+      -Selector "$selector" \
+      -PluginJar "$(cygpath -w "$plugin_jar")" \
+      -LogDir "$(cygpath -w "$smoke_dir")"
+  else
+    bash "$smoke_entrypoint" "$selector" "$plugin_jar" "$smoke_dir"
+  fi
+}
 
 environment_files=()
 for selector in 1.20.6 latest-1.21; do
   safe_selector="${selector//[^0-9A-Za-z._-]/_}"
   smoke_dir="$output_dir/smoke/$safe_selector"
-  bash "$script_dir/smoke-paper.sh" "$selector" "$jar" "$smoke_dir"
+  run_smoke "$selector" "$jar" "$smoke_dir"
   summary="$smoke_dir/smoke-summary.txt"
   if [[ "$(summary_value result "$summary")" != "PASS" ]]; then
     echo "runtime smoke did not pass for $selector" >&2
@@ -188,6 +213,7 @@ jq -n \
   --arg harness_commit "$harness_commit" \
   --argjson harness_dirty "$harness_dirty" \
   --arg harness_sha256 "$harness_sha256" \
+  --arg smoke_entrypoint "$(basename "$smoke_entrypoint")" \
   --arg smoke_sha256 "$smoke_sha256" \
   --arg started_at "$started_at" \
   --arg completed_at "$completed_at" \
@@ -211,6 +237,7 @@ jq -n \
       commit: $harness_commit,
       dirty: $harness_dirty,
       verifier_sha256: $harness_sha256,
+      smoke_entrypoint: $smoke_entrypoint,
       smoke_sha256: $smoke_sha256
     },
     execution: {

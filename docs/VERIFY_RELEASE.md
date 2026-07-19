@@ -100,7 +100,8 @@ After publication, run the separate `Post-release Runtime Verification` workflow
 execute `bash scripts/verify-published-release-runtime.sh <tag> <output-dir>` locally. This downloads the
 public JAR and `SHA256SUMS.txt`, verifies the artifact identity, reruns both Paper endpoint smokes, requires
 a non-zero selftest, and emits `post-release-runtime-receipt.json`. Future releases run the same verifier
-automatically after the privileged publisher completes.
+automatically after the privileged publisher completes. The verifier selects `smoke-paper.ps1` under
+Windows Git Bash because native PowerShell process stdin is required there; Linux uses `smoke-paper.sh`.
 
 These checks cover startup, built-in selftest, and clean shutdown only. They do not verify Purpur,
 Pufferfish, every 1.21 patch, or a full fell/chop/protection gameplay path. Manual logs are likewise scoped
