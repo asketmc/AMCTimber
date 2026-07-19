@@ -21,12 +21,6 @@ SPEC.loader.exec_module(MODULE)
 
 
 SUPPORTED_VERSIONS = [
-    "1.20",
-    "1.20.1",
-    "1.20.2",
-    "1.20.3",
-    "1.20.4",
-    "1.20.5",
     "1.20.6",
     "1.21",
     "1.21.1",
@@ -63,9 +57,9 @@ class ModrinthReleaseTests(unittest.TestCase):
         )
 
     def test_rejects_missing_configured_stable_version(self) -> None:
-        without_120 = [entry for entry in GAME_VERSIONS if entry["version"] != "1.20"]
+        without_1206 = [entry for entry in GAME_VERSIONS if entry["version"] != "1.20.6"]
         with self.assertRaisesRegex(MODULE.PreparationError, "configured stable versions"):
-            MODULE.select_game_versions(without_120, SUPPORTED_VERSIONS)
+            MODULE.select_game_versions(without_1206, SUPPORTED_VERSIONS)
 
     def test_validates_plugin_loader_tags(self) -> None:
         self.assertEqual(

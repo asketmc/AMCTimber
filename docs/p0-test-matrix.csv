@@ -8,7 +8,7 @@ P0-006,native/script/nested jar pattern,scripts/check-release-jar.sh heuristic; 
 P0-007,release version or source mismatch,scripts/verify-release-version.sh; scripts/check-release-security.py,Release Dry Run + Release Security,implemented
 P0-008,process exec/native load/classloader/network source patterns,scripts/check-runtime-surface.sh; .semgrep.yml,Reviewer Evidence + Semgrep,implemented
 P0-009,XP bridge runs when disabled,XpBridgeTest.grantDoesNotTouchPlayerOrSchedulerWhenDisabled; TimberConfigTest.xpBridgeCanBeDisabledInConfig,unit + P0 tagged tests,implemented
-P0-010,Paper boundary-version startup/selftest/shutdown regression,Paper Runtime Smoke on 1.20.6 and latest stable 1.21 with exact-build logs,Paper Runtime Smoke,implemented
+P0-010,Paper boundary-version startup/selftest/shutdown or public-artifact regression,Paper Runtime Smoke covers built/prepared jars; post-release verifier downloads the public jar and repeats both endpoints with a non-zero selftest and receipt,Paper Runtime Smoke + post-release runtime verification,implemented
 P0-011,QA mutation hooks exposed,qa.commands-enabled defaults false and amctimber.qa is separate; command smoke absent,unit/config tests + planned runtime smoke,partial
 P0-012,Purpur/Pufferfish or gameplay-path runtime regression,Paper endpoint smoke does not cover these runtimes or full fell/chop/protection E2E,planned runtime smoke/E2E,planned
 P0-013,fallen BlockDisplay black from terrain light sampling,ToppleAnimatorMathTest.lightAnchor_sitsAboveTheRenderedBlockAndPreservesEveryVertex plus runtime selftest; arbitrary shader rendering remains manual,unit + P0 tagged tests + Paper selftest + manual shader visual check,partial

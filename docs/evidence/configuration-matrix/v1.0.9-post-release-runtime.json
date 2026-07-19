@@ -1,0 +1,55 @@
+{
+  "schema": "amctimber-post-release-runtime-v1",
+  "result": "PASS",
+  "repository": "asketmc/AMCTimber",
+  "release": {
+    "tag": "v1.0.9",
+    "commit": "435f3855fcf121c6bfef6b558615b22af12ecec9"
+  },
+  "artifact": {
+    "name": "AMCTimber-1.0.9.jar",
+    "source_url": "https://github.com/asketmc/AMCTimber/releases/download/v1.0.9/AMCTimber-1.0.9.jar",
+    "sha256": "dc398d13f99b15c88b500324fef3282f2374c28452b13f47f49fd8d36fdc9e6c",
+    "size_bytes": 180060
+  },
+  "harness": {
+    "commit": "be5807aef8a10fac2fa6ea312f063032b3b98245",
+    "dirty": false,
+    "verifier_sha256": "dcac0b249c76fb383fff405b9a2e3d7c62555085725ae976cde79f20eb84ed4f",
+    "smoke_entrypoint": "smoke-paper.ps1",
+    "smoke_sha256": "8ded408b7a4eb9590b035378fade4374a9d721d33f27125a5c745853cf92698e"
+  },
+  "execution": {
+    "started_at": "2026-07-19T22:45:07Z",
+    "completed_at": "2026-07-19T22:47:12Z",
+    "os": "MINGW64_NT-10.0-19045",
+    "architecture": "x86_64",
+    "java": "openjdk version \"21.0.9\" 2025-10-21 LTS"
+  },
+  "environments": [
+    {
+      "id": "paper-1.20.6",
+      "selector": "1.20.6",
+      "server_software": "Paper",
+      "minecraft_version": "1.20.6",
+      "server_build": "151",
+      "server_sha256": "4b011f5adb5f6c72007686a223174fce82f31aeb4b34faf4652abc840b47e640",
+      "plugin_sha256": "dc398d13f99b15c88b500324fef3282f2374c28452b13f47f49fd8d36fdc9e6c",
+      "selftest_passed": 78,
+      "selftest_total": 78,
+      "result": "PASS"
+    },
+    {
+      "id": "paper-latest-1.21",
+      "selector": "latest-1.21",
+      "server_software": "Paper",
+      "minecraft_version": "1.21.11",
+      "server_build": "132",
+      "server_sha256": "5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba",
+      "plugin_sha256": "dc398d13f99b15c88b500324fef3282f2374c28452b13f47f49fd8d36fdc9e6c",
+      "selftest_passed": 78,
+      "selftest_total": 78,
+      "result": "PASS"
+    }
+  ]
+}

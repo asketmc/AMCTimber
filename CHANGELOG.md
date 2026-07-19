@@ -11,10 +11,12 @@ Keep a Changelog format.
   The workflow downloads the exact signed GitHub Release JAR, verifies its checksum and tag ancestry,
   selects current supported Minecraft tags, renders polished Markdown release notes, and verifies the
   Modrinth API readback without exposing the publication token to build or repository code.
+- Publish an evidence-backed supported-configuration matrix with fail-closed validation and a
+  post-deployment Paper runtime receipt for the exact public release JAR.
 
 ### Fixed
 
-- Advertise every stable Minecraft 1.20.x version and Minecraft 1.21.x through 1.21.11 on Modrinth,
+- Advertise Minecraft 1.20.6 and Minecraft 1.21.x through 1.21.11 on Modrinth,
   while rejecting later game-version tags until compatibility is reviewed explicitly.
 
 ## [1.0.9] - 2026-07-16

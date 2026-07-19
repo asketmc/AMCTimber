@@ -11,7 +11,7 @@
 [![Modrinth](https://img.shields.io/modrinth/dt/ri1Ibgnf?logo=modrinth&label=Modrinth)](https://modrinth.com/plugin/amctimber)
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
-**Valheim-style tree felling for Paper, Purpur, and Pufferfish on Minecraft 1.20.6-1.21.x only.**
+**Valheim-style tree felling for Paper, Purpur, and Pufferfish on Minecraft 1.20.6-1.21.11 only.**
 
 Chop the base of a tree and the whole thing **topples over** — a smooth, client-interpolated fall that
 leaves a stump behind, just like Valheim. The downed trunk lies on the ground and has to be **chopped
@@ -64,14 +64,17 @@ runtime libraries.
 | | |
 |---|---|
 | **Server software** | **Paper, Purpur, Pufferfish only** |
-| **Minecraft** | **1.20.6-1.21.x** (one jar) |
+| **Minecraft** | **1.20.6-1.21.11** (one jar) |
 | **Java** | 21+ |
 | **Spigot** | ❌ not supported (the plugin uses modern Display/Interaction entities + Adventure) |
+| **Folia** | ❌ not supported |
 | **Dependencies** | none required; **WorldGuard** & **Towny** are optional; hook errors deny by default |
 
-> Built against the Paper 1.20.6 API and intended only for Paper, Purpur, and Pufferfish 1.20.6-1.21.x.
+> Built against the Paper 1.20.6 API and intended only for Paper, Purpur, and Pufferfish 1.20.6-1.21.11.
 > `Paper Runtime Smoke` starts Paper 1.20.6 and the latest stable 1.21 release, runs the built-in selftest,
 > and checks clean shutdown. It does not cover Purpur, Pufferfish, every 1.21 patch, or gameplay E2E.
+> The evidence-backed [configuration matrix](docs/CONFIGURATION_MATRIX.md) separates supported, advertised,
+> system-tested, gameplay-E2E, and post-deployment coverage.
 
 ---
 
@@ -256,6 +259,11 @@ Automated layers:
   registry-backed paths (Tag-based log/leaf/axe detection) that require a running server. The committed
   `Paper Runtime Smoke` workflow runs startup, selftest, and clean shutdown on Paper 1.20.6 and the latest
   stable 1.21 release; it is not Purpur/Pufferfish or gameplay-path evidence.
+- **Post-deployment runtime check** — `scripts/verify-published-release-runtime.sh` downloads the public
+  release JAR and checksum, then repeats both Paper endpoint smokes. It emits a hash-bound JSON receipt;
+  this remains a system smoke and is not labelled gameplay E2E.
+- **Configuration coverage contract** — [docs/CONFIGURATION_MATRIX.md](docs/CONFIGURATION_MATRIX.md) and
+  its machine-readable JSON distinguish supported, advertised, tested, and explicitly missing rows.
 - **Audited boundary regression gate** — `scripts/check-runtime-security.py` fails CI if the concrete
   WorldGuard/Towny operation mapping, no-drop/final-cancellation handoff, attributed crush damage,
   landing authorization ordering, or paced item-delivery choke point regresses.

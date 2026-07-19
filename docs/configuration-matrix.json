@@ -1,0 +1,329 @@
+{
+  "schema": "amctimber-configuration-matrix-v1",
+  "last_reviewed": "2026-07-20",
+  "release_under_test": {
+    "tag": "v1.0.9",
+    "commit": "435f3855fcf121c6bfef6b558615b22af12ecec9",
+    "artifact": "AMCTimber-1.0.9.jar",
+    "sha256": "dc398d13f99b15c88b500324fef3282f2374c28452b13f47f49fd8d36fdc9e6c"
+  },
+  "support_contract": {
+    "server_software": [
+      "Paper",
+      "Purpur",
+      "Pufferfish"
+    ],
+    "minecraft_versions": [
+      "1.20.6",
+      "1.21",
+      "1.21.1",
+      "1.21.2",
+      "1.21.3",
+      "1.21.4",
+      "1.21.5",
+      "1.21.6",
+      "1.21.7",
+      "1.21.8",
+      "1.21.9",
+      "1.21.10",
+      "1.21.11"
+    ],
+    "java": "21+",
+    "verified_java": [
+      "21"
+    ],
+    "optional_integrations": [
+      "WorldGuard",
+      "Towny"
+    ],
+    "unsupported_server_software": [
+      "Folia",
+      "Spigot"
+    ],
+    "distribution_loaders": [
+      "paper",
+      "purpur"
+    ],
+    "distribution_note": "Modrinth has no Pufferfish loader tag; Pufferfish remains an unverified Paper-compatible runtime claim."
+  },
+  "coverage_levels": {
+    "system_smoke": "Real server process loads the built or published JAR, runs a non-zero selftest, and shuts down cleanly.",
+    "gameplay_e2e": "A real player and world exercise the complete fell, topple, cleanup, stump, yield, and protection path.",
+    "post_deployment": "The public release artifact is downloaded from the distribution channel, checksum-verified, and executed after publication."
+  },
+  "representative_environments": [
+    {
+      "id": "paper-ci-baseline",
+      "purpose": "Minimum/latest Paper startup compatibility",
+      "os": "GitHub-hosted Ubuntu",
+      "java": "Temurin 21",
+      "server": "Official Paper build selected by the Paper API",
+      "plugin_configuration": "packaged defaults",
+      "integrations": [],
+      "server_profile": "loopback, offline mode, one slot, no RCON, no generated structures",
+      "limitations": "No player, world mutation, optional integration, or gameplay path is exercised."
+    },
+    {
+      "id": "published-paper-baseline",
+      "purpose": "Post-deployment verification of the exact public GitHub Release JAR",
+      "os": "Ubuntu 24.04 in automation; local Git Bash for the committed bootstrap receipt",
+      "java": "Temurin/OpenJDK 21",
+      "server": "Official Paper 1.20.6 and latest stable 1.21 builds",
+      "plugin_configuration": "packaged defaults",
+      "integrations": [],
+      "server_profile": "loopback, offline mode, one slot, no RCON, no generated structures",
+      "limitations": "This is a post-deployment system smoke, not gameplay E2E."
+    }
+  ],
+  "rows": [
+    {
+      "id": "paper-1.20.6-java21-default",
+      "row_type": "runtime",
+      "runtime": "Paper",
+      "minecraft": "1.20.6",
+      "java": "21",
+      "configuration": "defaults; no optional integrations",
+      "support": "supported",
+      "system_smoke": "verified",
+      "gameplay_e2e": "gap",
+      "post_deployment": "verified",
+      "evidence": [
+        {
+          "kind": "github_actions_run",
+          "label": "current-main Paper smoke",
+          "covers": [
+            "system_smoke"
+          ],
+          "url": "https://github.com/asketmc/AMCTimber/actions/runs/29511517489"
+        },
+        {
+          "kind": "github_actions_run",
+          "label": "exact v1.0.9 pre-publication smoke",
+          "covers": [
+            "system_smoke"
+          ],
+          "url": "https://github.com/asketmc/AMCTimber/actions/runs/29467341360"
+        },
+        {
+          "kind": "workflow",
+          "label": "post-release runtime workflow",
+          "covers": [
+            "post_deployment"
+          ],
+          "path": ".github/workflows/post-release-runtime.yml"
+        },
+        {
+          "kind": "repository_receipt",
+          "label": "v1.0.9 post-release runtime receipt",
+          "covers": [
+            "post_deployment"
+          ],
+          "path": "docs/evidence/configuration-matrix/v1.0.9-post-release-runtime.json"
+        }
+      ]
+    },
+    {
+      "id": "paper-1.21.11-java21-default",
+      "row_type": "runtime",
+      "runtime": "Paper",
+      "minecraft": "1.21.11",
+      "java": "21",
+      "configuration": "defaults; no optional integrations",
+      "support": "supported",
+      "system_smoke": "verified",
+      "gameplay_e2e": "gap",
+      "post_deployment": "verified",
+      "evidence": [
+        {
+          "kind": "github_actions_run",
+          "label": "current-main Paper smoke",
+          "covers": [
+            "system_smoke"
+          ],
+          "url": "https://github.com/asketmc/AMCTimber/actions/runs/29511517489"
+        },
+        {
+          "kind": "github_actions_run",
+          "label": "exact v1.0.9 pre-publication smoke",
+          "covers": [
+            "system_smoke"
+          ],
+          "url": "https://github.com/asketmc/AMCTimber/actions/runs/29467341360"
+        },
+        {
+          "kind": "workflow",
+          "label": "post-release runtime workflow",
+          "covers": [
+            "post_deployment"
+          ],
+          "path": ".github/workflows/post-release-runtime.yml"
+        },
+        {
+          "kind": "repository_receipt",
+          "label": "v1.0.9 post-release runtime receipt",
+          "covers": [
+            "post_deployment"
+          ],
+          "path": "docs/evidence/configuration-matrix/v1.0.9-post-release-runtime.json"
+        }
+      ]
+    },
+    {
+      "id": "paper-intermediate-1.21-java21-default",
+      "row_type": "runtime",
+      "runtime": "Paper",
+      "minecraft": "1.21-1.21.10 intermediate patches",
+      "java": "21",
+      "configuration": "defaults; no optional integrations",
+      "support": "supported",
+      "system_smoke": "gap",
+      "gameplay_e2e": "gap",
+      "post_deployment": "gap",
+      "evidence": []
+    },
+    {
+      "id": "purpur-supported-range-java21-default",
+      "row_type": "runtime",
+      "runtime": "Purpur",
+      "minecraft": "1.20.6-1.21.11",
+      "java": "21",
+      "configuration": "defaults; no optional integrations",
+      "support": "supported",
+      "system_smoke": "gap",
+      "gameplay_e2e": "gap",
+      "post_deployment": "gap",
+      "evidence": []
+    },
+    {
+      "id": "pufferfish-supported-range-java21-default",
+      "row_type": "runtime",
+      "runtime": "Pufferfish",
+      "minecraft": "1.20.6-1.21.11",
+      "java": "21",
+      "configuration": "defaults; no optional integrations",
+      "support": "supported",
+      "system_smoke": "gap",
+      "gameplay_e2e": "gap",
+      "post_deployment": "gap",
+      "evidence": []
+    },
+    {
+      "id": "supported-runtime-worldguard-towny",
+      "row_type": "integration",
+      "runtime": "supported runtimes",
+      "minecraft": "1.20.6-1.21.11",
+      "java": "21",
+      "configuration": "WorldGuard, Towny, or both",
+      "support": "optional",
+      "system_smoke": "unit_only",
+      "gameplay_e2e": "gap",
+      "post_deployment": "gap",
+      "evidence": [
+        {
+          "kind": "repository_tests",
+          "label": "protection contract tests",
+          "covers": [
+            "system_smoke"
+          ],
+          "path": "src/test/java/com/asketmc/timber/ProtectionTest.java"
+        }
+      ]
+    },
+    {
+      "id": "supported-runtime-nondefault-config",
+      "row_type": "configuration",
+      "runtime": "supported runtimes",
+      "minecraft": "1.20.6-1.21.11",
+      "java": "21",
+      "configuration": "non-default supported settings",
+      "support": "supported",
+      "system_smoke": "unit_only",
+      "gameplay_e2e": "gap",
+      "post_deployment": "gap",
+      "evidence": [
+        {
+          "kind": "repository_tests",
+          "label": "configuration tests",
+          "covers": [
+            "system_smoke"
+          ],
+          "path": "src/test/java/com/asketmc/timber/TimberConfigTest.java"
+        }
+      ]
+    },
+    {
+      "id": "supported-runtime-java-newer-than-21",
+      "row_type": "java",
+      "runtime": "supported runtimes",
+      "minecraft": "1.20.6-1.21.11",
+      "java": ">21",
+      "configuration": "defaults",
+      "support": "supported",
+      "system_smoke": "gap",
+      "gameplay_e2e": "gap",
+      "post_deployment": "gap",
+      "evidence": []
+    },
+    {
+      "id": "spigot-unsupported",
+      "row_type": "exclusion",
+      "runtime": "Spigot",
+      "minecraft": "any",
+      "java": "any",
+      "configuration": "any",
+      "support": "unsupported",
+      "system_smoke": "not_applicable",
+      "gameplay_e2e": "not_applicable",
+      "post_deployment": "not_applicable",
+      "evidence": []
+    },
+    {
+      "id": "folia-unsupported",
+      "row_type": "exclusion",
+      "runtime": "Folia",
+      "minecraft": "any",
+      "java": "any",
+      "configuration": "any",
+      "support": "unsupported",
+      "system_smoke": "not_applicable",
+      "gameplay_e2e": "not_applicable",
+      "post_deployment": "not_applicable",
+      "evidence": []
+    }
+  ],
+  "distribution_observations": [
+    {
+      "channel": "Modrinth v1.0.9",
+      "checked_at": "2026-07-20",
+      "url": "https://modrinth.com/plugin/amctimber/version/OJLjhPU3",
+      "observed_loaders": [
+        "folia",
+        "paper",
+        "purpur"
+      ],
+      "observed_minecraft_versions": [
+        "1.20",
+        "1.20.1",
+        "1.20.2",
+        "1.20.3",
+        "1.20.4",
+        "1.20.5",
+        "1.20.6",
+        "1.21",
+        "1.21.1",
+        "1.21.2",
+        "1.21.3",
+        "1.21.4",
+        "1.21.5",
+        "1.21.6",
+        "1.21.7",
+        "1.21.8",
+        "1.21.9",
+        "1.21.10",
+        "1.21.11"
+      ],
+      "status": "drift",
+      "reason": "The public version advertises Folia and Minecraft 1.20-1.20.5, which are outside the evidence-backed support contract."
+    }
+  ]
+}

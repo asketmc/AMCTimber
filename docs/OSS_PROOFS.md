@@ -25,7 +25,9 @@ server plugin portfolio project.
 | JaCoCo coverage gate | Maven `verify` generates JaCoCo reports and enforces >=80% line / >=70% branch coverage for the current pure-core gate | implemented |
 | PIT mutation gate | Maven `verify` runs PIT for the current pure-core mutation target and uploads mutation reports through CI artifacts | implemented |
 | P0 test matrix | `docs/P0_TEST_MATRIX.md` and `docs/p0-test-matrix.csv` map highest-risk behavior to tests/scripts and CI gates | implemented |
+| Supported configuration matrix | Machine-readable support contract and generated Markdown distinguish support, advertisement, system smoke, gameplay E2E, post-deployment evidence, and gaps; CI rejects evidence-free green rows | implemented |
 | Paper endpoint runtime smoke | Dedicated PR/push workflow tests its built jar; the release workflow separately tests the exact prepared release jar on Paper 1.20.6 and latest stable 1.21, records the plugin hash, and uploads logs; no Purpur/Pufferfish or gameplay E2E claim | implemented |
+| Post-deployment Paper runtime | Unprivileged verifier downloads the public release JAR and checksum, executes both Paper endpoints, requires non-zero selftests, and emits a machine-readable receipt; no gameplay-E2E claim | implemented |
 
 These controls provide verification evidence. They do not mean the plugin has been externally audited or
 certified secure.

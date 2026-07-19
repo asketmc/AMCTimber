@@ -8,6 +8,8 @@ evidence_dir="${1:-reviewer-evidence}"
 rm -rf "$evidence_dir"
 mkdir -p "$evidence_dir"
 
+python3 scripts/check-configuration-matrix.py
+python3 scripts/test-configuration-matrix.py
 version="$(bash scripts/verify-release-version.sh)"
 
 mvn -B -ntp clean verify > "$evidence_dir/test-report.txt" 2>&1
@@ -19,6 +21,11 @@ cp -R target/site/jacoco "$evidence_dir/qa/jacoco"
 cp -R target/pit-reports "$evidence_dir/qa/pit-reports"
 cp -R target/surefire-reports "$evidence_dir/qa/surefire-reports"
 cp -R target/surefire-p0-reports "$evidence_dir/qa/surefire-p0-reports"
+cp docs/CONFIGURATION_MATRIX.md "$evidence_dir/qa/CONFIGURATION_MATRIX.md"
+cp docs/configuration-matrix.json "$evidence_dir/qa/configuration-matrix.json"
+if [[ -d docs/evidence/configuration-matrix ]]; then
+  cp -R docs/evidence/configuration-matrix "$evidence_dir/qa/configuration-matrix-receipts"
+fi
 cp docs/P0_TEST_MATRIX.md "$evidence_dir/qa/P0_TEST_MATRIX.md"
 cp docs/p0-test-matrix.csv "$evidence_dir/qa/p0-test-matrix.csv"
 

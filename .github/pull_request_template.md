@@ -11,7 +11,7 @@ Describe the user-visible or operational outcome and the reason for the change.
 
 ## Compatibility And Risk
 
-- [ ] Public compatibility remains Paper, Purpur, and Pufferfish 1.20.6-1.21.x only
+- [ ] Public compatibility remains Paper, Purpur, and Pufferfish 1.20.6-1.21.11 only
 - [ ] Player-build detection is described as heuristic, not guaranteed protection
 - [ ] Security and supply-chain evidence is described as verification, not certification or proof of safety
 - [ ] Rollback, shutdown, migration, and operator-facing behavior are documented where affected

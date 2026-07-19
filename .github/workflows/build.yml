@@ -30,6 +30,10 @@ jobs:
         run: mvn -B -ntp clean verify
       - name: Check runtime security invariants
         run: python3 scripts/check-runtime-security.py
+      - name: Validate configuration coverage matrix
+        run: |
+          python3 scripts/check-configuration-matrix.py
+          python3 scripts/test-configuration-matrix.py
       - name: Test Modrinth release metadata
         run: python3 scripts/test-modrinth-release.py
       - name: Check release jar safety
@@ -51,6 +55,8 @@ jobs:
             target/pit-reports/
             target/surefire-reports/
             target/surefire-p0-reports/
+            docs/CONFIGURATION_MATRIX.md
+            docs/configuration-matrix.json
             docs/P0_TEST_MATRIX.md
             docs/p0-test-matrix.csv
           if-no-files-found: error
