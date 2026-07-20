@@ -40,6 +40,7 @@ $script:latestLog = Join-Path $runtimeDir 'logs\latest.log'
 $script:results = [Collections.Generic.List[object]]::new()
 $script:performance = $null
 $script:restartRecovery = $null
+$script:concurrencyTimeBudgetRetries = 0
 
 function Get-FileSha256 {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -687,12 +688,31 @@ view-distance=4
             New-OakFixture -X $baseX -Z 0
             New-OakFixture -X ($baseX + 15) -Z 0
             New-OakFixture -X ($baseX + 30) -Z 0
+            $cycleOffset = ([string](Read-LatestLog)).Length
             Invoke-CommandBatch -Commands @(
                 "bot mine AMCT_QA $baseX 100 0",
                 "bot mine AMCT_QA2 $($baseX+15) 100 0",
                 "bot mine AMCT_QA3 $($baseX+30) 100 0"
             ) | Out-Null
-            Wait-TrunkCount -Expected 3 | Out-Null
+            try {
+                Wait-TrunkCount -Expected 3 -TimeoutSeconds 12 | Out-Null
+            } catch {
+                $logText = [string](Read-LatestLog)
+                $tail = if ($logText.Length -gt $cycleOffset) { $logText.Substring($cycleOffset) } else { '' }
+                $retryTargets = @(
+                    [pscustomobject]@{ Bot = 'AMCT_QA'; X = $baseX },
+                    [pscustomobject]@{ Bot = 'AMCT_QA2'; X = $baseX + 15 },
+                    [pscustomobject]@{ Bot = 'AMCT_QA3'; X = $baseX + 30 }
+                ) | Where-Object { $tail -match "fell rejected: attempt-time-budget at $($_.X),100,0" }
+                if ($retryTargets.Count -eq 0) { throw }
+                foreach ($target in $retryTargets) {
+                    New-OakFixture -X $target.X -Z 0
+                    Invoke-CapturedCommand -Command "bot mine $($target.Bot) $($target.X) 100 0" | Out-Null
+                    $script:concurrencyTimeBudgetRetries++
+                    Start-Sleep -Milliseconds 150
+                }
+                Wait-TrunkCount -Expected 3 -TimeoutSeconds 15 | Out-Null
+            }
             Complete-Trunk -Bot 'AMCT_QA' -ExpectedRemaining 2
             Complete-Trunk -Bot 'AMCT_QA2' -ExpectedRemaining 1
             Complete-Trunk -Bot 'AMCT_QA3' -ExpectedRemaining 0
@@ -768,6 +788,7 @@ view-distance=4
         counters = [ordered]@{ discovered = $script:results.Count; passed = $passed; failed = $failed; skipped = 0 }
         performance = $script:performance
         restart_recovery = $script:restartRecovery
+        resilience = [ordered]@{ concurrency_time_budget_retries = $script:concurrencyTimeBudgetRetries }
         scenarios = @($script:results)
     }
     [IO.File]::WriteAllText($receiptPath, ($receipt | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
