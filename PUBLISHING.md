@@ -31,7 +31,7 @@ candidate. Only after that succeeds does a separate publication job validate, si
 Release process:
 
 ```bash
-VERSION=1.0.9
+VERSION=1.0.10
 gh release create "v${VERSION}" \
   --repo asketmc/AMCTimber \
   --target main \

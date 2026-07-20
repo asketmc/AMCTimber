@@ -41,4 +41,7 @@ final class Debug {
 
     /** Always shown, regardless of level. */
     void warn(String m) { log.warning(m); }
+
+    /** Always shown, regardless of level. */
+    void severe(String m) { log.severe(m); }
 }

@@ -20,11 +20,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Logger;
 
 /** Registry, bounded durable-yield dispatcher, and lifecycle cleanup for landed trunks. */
 final class FelledTrunkStore {
-    private final Logger log;
+    private volatile Debug debug;
     private final RecoveryBudget recoveryBudget;
     private final Map<UUID, FelledTrunk> index = new ConcurrentHashMap<>();
     private final Set<FelledTrunk> all = ConcurrentHashMap.newKeySet();
@@ -37,9 +36,13 @@ final class FelledTrunkStore {
     private int deliveryStepsPerTick = 8;
     private Protection protection;
 
-    FelledTrunkStore(Logger log, RecoveryBudget recoveryBudget) {
-        this.log = log;
+    FelledTrunkStore(Debug debug, RecoveryBudget recoveryBudget) {
+        this.debug = debug;
         this.recoveryBudget = recoveryBudget;
+    }
+
+    void updateDebug(Debug debug) {
+        this.debug = debug;
     }
 
     void updateDeliveryLimit(int steps) {
@@ -56,7 +59,7 @@ final class FelledTrunkStore {
             dormantYields.addAll(PendingYieldFile.read(recoveryFile));
             recoveryBudget.restorePending(dormantYields.size());
             if (!dormantYields.isEmpty()) {
-                log.warning("loaded " + dormantYields.size() + " pending timber yield record(s)");
+                debug.info("loaded " + dormantYields.size() + " pending timber yield record(s)");
             }
         } catch (IOException | RuntimeException failure) {
             quarantineInvalidRecoveryFile(failure);
@@ -111,7 +114,7 @@ final class FelledTrunkStore {
             return false;
         }
         yield.delivered(amount);
-        log.warning("queued " + amount + " timber item(s) for paced delivery");
+        debug.full("queued " + amount + " timber item(s) for paced delivery");
         return true;
     }
 
@@ -135,7 +138,7 @@ final class FelledTrunkStore {
         yield.delivered(amount);
         recoveryStateDirty = true;
         boolean durable = persistRecoveryState();
-        log.warning("retained " + amount + " timber item(s) for paced delivery"
+        debug.warn("retained " + amount + " timber item(s) for paced delivery"
                 + (durable ? "" : "; journal retry pending"));
         return true;
     }
@@ -194,7 +197,7 @@ final class FelledTrunkStore {
         }
         recoveryStateDirty = true;
         boolean durable = persistRecoveryState();
-        log.warning("retained " + totals.size() + " terminal leaf-yield record(s)"
+        debug.warn("retained " + totals.size() + " terminal leaf-yield record(s)"
                 + (durable ? "" : "; journal retry pending"));
         return true;
     }
@@ -275,7 +278,7 @@ final class FelledTrunkStore {
                 killed++;
             }
         }
-        if (killed > 0) log.info("purged " + killed + " orphan timber entities (" + reason + ").");
+        if (killed > 0) debug.info("purged " + killed + " orphan timber entities (" + reason + ").");
         return killed;
     }
 
@@ -284,7 +287,7 @@ final class FelledTrunkStore {
             try {
                 trunk.deferOnShutdown(this);
             } catch (RuntimeException | LinkageError failure) {
-                log.warning("trunk shutdown recovery failed: " + failure);
+                debug.warn("trunk shutdown recovery failed: " + failure);
             }
         }
         all.clear();
@@ -299,7 +302,7 @@ final class FelledTrunkStore {
             stagedYields.clear();
             dormantYields.clear();
         } else {
-            log.severe("pending timber yield remains in memory after repeated shutdown persistence failure");
+            debug.severe("pending timber yield remains in memory after repeated shutdown persistence failure");
         }
         purgeTagged("disable");
     }
@@ -315,13 +318,13 @@ final class FelledTrunkStore {
                 changed |= attempt.changed();
                 if (attempt.complete()) {
                     recoveryBudget.delivered();
-                    log.info("delivered deferred timber yield");
+                    debug.full("delivered deferred timber yield");
                 } else {
                     pendingYields.addLast(pending);
                 }
             } catch (RuntimeException | LinkageError failure) {
                 pendingYields.addLast(pending);
-                log.warning("deferred timber yield retry failed: " + failure.getClass().getSimpleName());
+                debug.warn("deferred timber yield retry failed: " + failure.getClass().getSimpleName());
             }
         }
         if (changed) recoveryStateDirty = true;
@@ -356,13 +359,13 @@ final class FelledTrunkStore {
             return true;
         } catch (IOException | RuntimeException failure) {
             recoveryStateDirty = true;
-            log.severe("could not persist pending timber yield: " + failure.getMessage());
+            debug.severe("could not persist pending timber yield: " + failure.getMessage());
             return false;
         }
     }
 
     private void quarantineInvalidRecoveryFile(Exception failure) {
-        log.severe("pending-yield recovery file is invalid: " + failure.getMessage());
+        debug.severe("pending-yield recovery file is invalid: " + failure.getMessage());
         quarantineRecoveryFile("invalid");
     }
 
@@ -372,9 +375,9 @@ final class FelledTrunkStore {
                 "pending-yields." + reason + '-' + System.currentTimeMillis() + ".properties");
         try {
             Files.move(recoveryFile, quarantine, StandardCopyOption.REPLACE_EXISTING);
-            log.severe("moved recovery data to " + quarantine.getFileName());
+            debug.severe("moved recovery data to " + quarantine.getFileName());
         } catch (IOException moveFailure) {
-            log.severe("could not quarantine recovery data: " + moveFailure.getMessage());
+            debug.severe("could not quarantine recovery data: " + moveFailure.getMessage());
         }
     }
 }
