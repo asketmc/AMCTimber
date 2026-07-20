@@ -1,1 +1,2 @@
 *.sh text eol=lf
+docs/evidence/configuration-matrix/2026-07-20-overnight-e2e/*.json text eol=lf

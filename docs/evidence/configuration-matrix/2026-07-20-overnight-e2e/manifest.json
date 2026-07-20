@@ -25,13 +25,13 @@
     "pit_test_strength_percent": 94
   },
   "receipts": [
-    {"path": "paper-1.20.6-java21-viaversion.json", "sha256": "44d5328ca4b09612fe70248fb8791c0a1c18748c0f03cef7e6c27193457ea556"},
-    {"path": "paper-1.21.7-java21.json", "sha256": "f40c36fad9776cee9990fd80c9977fa2c3c82ed683b74b2a56f08ca3334f8530"},
-    {"path": "paper-1.21.11-java21-soak10.json", "sha256": "384b2e3e027d94f2895e6c74820b460e73f580d3c44e3a4cdb7a0cc2cfe4b6a8"},
-    {"path": "paper-1.21.11-java21-policy.json", "sha256": "c55840f8eeedd32d06cdea711a0e4bd053a568ef677329baea6a9f1b82e4b027"},
-    {"path": "purpur-1.21.11-java21.json", "sha256": "7b971d922d804f45561d60b47f2312d6ed071c269ca5a888b477520ca59a8704"},
-    {"path": "pufferfish-1.21.10-java21.json", "sha256": "ae0bcbca48e16229a517845452d84ecd88ad7f67f869a33de1b8ba6300b5d050"},
-    {"path": "paper-1.21.11-java25.json", "sha256": "ac08c7e11a82374b500613232775bdb8ab327881922b78fb87fcae32001bc1b4"},
-    {"path": "paper-26.1.2-java25-canary.json", "sha256": "5cd1c19ba8a16be51706a419e7c979fe156c14cb63c969eca3d159167314b9a1"}
+    {"path": "paper-1.20.6-java21-viaversion.json", "sha256": "ed937a7ec52a844983cc95e0dd566a07963fa66d3e6e8fa797b978fe7051e4fb"},
+    {"path": "paper-1.21.7-java21.json", "sha256": "7e3bfbe7613dcd5ca37086fc03a2255f675be028235a0c3ea88a597fda459b6d"},
+    {"path": "paper-1.21.11-java21-soak10.json", "sha256": "ac152bfabbbc1d4365abff377ba196ea8f02c3b6b4713180615b35710adac077"},
+    {"path": "paper-1.21.11-java21-policy.json", "sha256": "f93aea9c664e3e6d0ac5dfaa35b9644385527f9ea60240e92685dc9a0cb3ea52"},
+    {"path": "purpur-1.21.11-java21.json", "sha256": "0a17d52001530a9b2d59d865093249b50a63792d3a48db8c2ad6780404b143bc"},
+    {"path": "pufferfish-1.21.10-java21.json", "sha256": "8e0f8098307eb476c672f8b2aa0101ba78802549696066c8b79d6ed3b1c71118"},
+    {"path": "paper-1.21.11-java25.json", "sha256": "a3bedb705da9c3920a04a59fea12ce560d0c70d1588d9e3dafd2c72653b1ba8f"},
+    {"path": "paper-26.1.2-java25-canary.json", "sha256": "d95f5e14f668bbbb0bb76175b40737a00e2a5ccc1cd955830c48e52555dbf33a"}
   ]
 }
