@@ -6,6 +6,7 @@ param(
     [string]$MinecraftVersion = '1.21.11',
     [Parameter(Mandatory = $true)][string]$PluginJar,
     [Parameter(Mandatory = $true)][string]$QaBotJar,
+    [string[]]$AdditionalPluginJar = @(),
     [Parameter(Mandatory = $true)][string]$EvidenceDir,
     [string]$JavaExecutable = 'java.exe',
     [int]$ConcurrencyCycles = 3,
@@ -447,6 +448,7 @@ $artifact = $null
 $serverJar = $null
 $plugin = $null
 $qabot = $null
+$additionalPlugins = @()
 $java = $null
 $javaVersion = $null
 $port = $null
@@ -454,6 +456,7 @@ $port = $null
 try {
     $plugin = (Resolve-Path -LiteralPath $PluginJar).Path
     $qabot = (Resolve-Path -LiteralPath $QaBotJar).Path
+    $additionalPlugins = @($AdditionalPluginJar | ForEach-Object { (Resolve-Path -LiteralPath $_).Path })
     $javaCommand = Get-Command $JavaExecutable -ErrorAction Stop
     $java = $javaCommand.Source
     $javaVersion = Get-JavaVersionLine -JavaPath $java
@@ -465,6 +468,9 @@ try {
     Copy-Item -LiteralPath $serverJar.Path -Destination (Join-Path $runtimeDir 'server.jar')
     Copy-Item -LiteralPath $plugin -Destination (Join-Path $runtimeDir 'plugins\AMCTimber.jar')
     Copy-Item -LiteralPath $qabot -Destination (Join-Path $runtimeDir 'plugins\VCraftQABot.jar')
+    foreach ($additionalPlugin in $additionalPlugins) {
+        Copy-Item -LiteralPath $additionalPlugin -Destination (Join-Path $runtimeDir ('plugins\' + (Split-Path -Leaf $additionalPlugin)))
+    }
     [IO.File]::WriteAllText((Join-Path $runtimeDir 'eula.txt'), "eula=true`n")
     $properties = @"
 allow-flight=true
@@ -673,6 +679,9 @@ view-distance=4
         if ($logText -match '(?m)^.*\[(?:AMCTimber|VCraftQABot)\].*(?:NoClassDefFoundError|ClassNotFoundException|LinkageError).*$') {
             throw 'A tested plugin reported a runtime linkage failure'
         }
+        if ($additionalPlugins.Count -gt 0 -and $logText -match '(?m)^.*Error occurred while enabling .*$') {
+            throw 'An additional compatibility plugin reported an enable failure'
+        }
     }
 } catch {
     $fatalError = $_.Exception.Message
@@ -704,7 +713,7 @@ view-distance=4
             server_checksum_source = if ($null -ne $artifact) { $artifact.ChecksumSource } else { $null }
             loopback_port = $port
             online_mode = $false
-            instrumentation = @('VCraftQABot')
+            instrumentation = @('VCraftQABot') + @($additionalPlugins | ForEach-Object { Split-Path -Leaf $_ })
             test_overrides = @('debug=full')
         }
         artifacts = [ordered]@{
@@ -712,6 +721,9 @@ view-distance=4
             amctimber_sha256 = if ($null -ne $plugin) { Get-FileSha256 -Path $plugin } else { $null }
             qabot_file = if ($null -ne $qabot) { Split-Path -Leaf $qabot } else { $null }
             qabot_sha256 = if ($null -ne $qabot) { Get-FileSha256 -Path $qabot } else { $null }
+            additional_plugins = @($additionalPlugins | ForEach-Object {
+                [ordered]@{ file = Split-Path -Leaf $_; sha256 = Get-FileSha256 -Path $_ }
+            })
             harness_sha256 = Get-FileSha256 -Path $PSCommandPath
             latest_log_sha256 = if (Test-Path -LiteralPath $consoleLog) { Get-FileSha256 -Path $consoleLog } else { $null }
         }
