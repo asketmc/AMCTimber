@@ -8,7 +8,7 @@ on:
       tag:
         description: Published release tag to download and execute
         required: true
-        default: v1.0.9
+        default: v1.0.10
         type: string
 
 permissions:

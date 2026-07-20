@@ -5,6 +5,8 @@ Keep a Changelog format.
 
 ## [Unreleased]
 
+## [1.0.10] - 2026-07-20
+
 ### Added
 
 - Publish each completed GitHub Release to Modrinth through a least-privilege, idempotent API handoff.
@@ -16,6 +18,8 @@ Keep a Changelog format.
 
 ### Fixed
 
+- Make `debug: off` suppress routine paced-yield queue and delivery messages as documented, while
+  preserving genuine recovery warnings and errors.
 - Advertise Minecraft 1.20.6 and Minecraft 1.21.x through 1.21.11 on Modrinth,
   while rejecting later game-version tags until compatibility is reviewed explicitly.
 
@@ -180,6 +184,7 @@ First public release, extracted and generalised from the internal asketmc build.
 - `/amctimber selftest`.
 - JUnit 5 server-free unit test suite.
 
+[1.0.10]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.10
 [1.0.9]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.9
 [1.0.8]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.8
 [1.0.7]: https://github.com/asketmc/AMCTimber/releases/tag/v1.0.7

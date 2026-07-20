@@ -32,7 +32,8 @@ public final class TimberPlugin extends JavaPlugin {
         saveDefaultConfig();
         this.sched = new Sched(this);
         this.recoveryBudget = new RecoveryBudget(PendingYieldFile.MAX_ENTRIES);
-        this.store = new FelledTrunkStore(getLogger(), recoveryBudget);
+        this.debug = new Debug(getLogger());
+        this.store = new FelledTrunkStore(debug, recoveryBudget);
         applyConfig();
         store.initializeRecovery(getDataFolder().toPath());
         this.fellManager = new FellJobManager(budget);
@@ -81,6 +82,7 @@ public final class TimberPlugin extends JavaPlugin {
                 nextConfig.respectBuilds, nextConfig.protectionFailClosed, nextDebug::warn);
         nextProtection.init();
         recoveryBudget.updateLimit(nextConfig.maxRecoveryRecords);
+        store.updateDebug(nextDebug);
         store.updateProtection(nextProtection);
         TreeScanner nextScanner = new TreeScanner(nextConfig);
         EntityBudget nextBudget = budget == null
