@@ -1,0 +1,6 @@
+name: AMCTimberE2EPolicy
+version: 0.1.0
+main: com.asketmc.qa.EventPolicyFixture
+api-version: '1.20'
+depend: [AMCTimber]
+description: Test-only late event-policy fixture for local AMCTimber E2E.

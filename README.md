@@ -266,7 +266,8 @@ Automated layers:
   QA guards, vanilla sneak bypass, player-build rejection, oak and 2×2 jungle felling, exact yield,
   entity cleanup, planned-restart journal recovery, and a three-player concurrency/TPS check. It runs
   locally on Paper, Purpur, or Pufferfish and emits hash-bound fail-closed JSON receipts; it is intentionally
-  not scheduled on hosted GitHub runners.
+  not scheduled on hosted GitHub runners. The optional test-only `qa/event-policy-fixture` adds real
+  late cancellation and no-drop event-policy assertions without entering the release JAR.
 - **Configuration coverage contract** — [docs/CONFIGURATION_MATRIX.md](docs/CONFIGURATION_MATRIX.md) and
   its machine-readable JSON distinguish supported, advertised, tested, and explicitly missing rows.
 - **Audited boundary regression gate** — `scripts/check-runtime-security.py` fails CI if the concrete

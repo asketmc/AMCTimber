@@ -10,6 +10,7 @@ param(
     [Parameter(Mandatory = $true)][string]$EvidenceDir,
     [string]$JavaExecutable = 'java.exe',
     [int]$ConcurrencyCycles = 3,
+    [switch]$EventPolicyFixture,
     [switch]$KeepRuntime
 )
 
@@ -538,6 +539,40 @@ view-distance=4
         Wait-TrunkCount -Expected 0 -TimeoutSeconds 5 | Out-Null
     }
 
+    if ($EventPolicyFixture) {
+        Invoke-Scenario -Id 'late-cancel-no-secondary-effects' -Body {
+            Remove-GroundItems
+            Give-Axe -Bot 'AMCT_QA'
+            New-OakFixture -X -20 -Z 0
+            $offset = ([string](Read-LatestLog)).Length
+            Invoke-CapturedCommand -Command 'bot mine AMCT_QA -20 100 0' | Out-Null
+            Wait-LogPattern -Pattern 'policy fixture cancelled break at -20,100,0' -TimeoutSeconds 10 -StartOffset $offset | Out-Null
+            Assert-Blocks -Blocks @(
+                [pscustomobject]@{ X = -20; Y = 100; Z = 0; Material = 'oak_log' },
+                [pscustomobject]@{ X = -20; Y = 101; Z = 0; Material = 'oak_log' }
+            )
+            Wait-TrunkCount -Expected 0 -TimeoutSeconds 5 | Out-Null
+            $logs = Count-ObservableMaterial -Bot 'AMCT_QA' -Material 'oak_log'
+            if ($logs -ne 0) { throw "Cancelled break produced $logs observable oak logs" }
+        }
+
+        Invoke-Scenario -Id 'late-no-drop-no-secondary-effects' -Body {
+            Remove-GroundItems
+            Give-Axe -Bot 'AMCT_QA'
+            New-OakFixture -X -40 -Z 0
+            $offset = ([string](Read-LatestLog)).Length
+            Invoke-CapturedCommand -Command 'bot mine AMCT_QA -40 100 0' | Out-Null
+            Wait-LogPattern -Pattern 'policy fixture disabled drops at -40,100,0' -TimeoutSeconds 10 -StartOffset $offset | Out-Null
+            Assert-Blocks -Blocks @(
+                [pscustomobject]@{ X = -40; Y = 100; Z = 0; Material = 'air' },
+                [pscustomobject]@{ X = -40; Y = 101; Z = 0; Material = 'oak_log' }
+            )
+            Wait-TrunkCount -Expected 0 -TimeoutSeconds 5 | Out-Null
+            $logs = Count-ObservableMaterial -Bot 'AMCT_QA' -Material 'oak_log'
+            if ($logs -ne 0) { throw "No-drop break produced $logs observable oak logs" }
+        }
+    }
+
     Invoke-Scenario -Id 'oak-fell-chop-yield-cleanup' -Body {
         Remove-GroundItems
         Give-Axe -Bot 'AMCT_QA'
@@ -673,6 +708,9 @@ view-distance=4
         $logText = [string](Read-LatestLog)
         Assert-Text -Text $logText -Pattern 'AMCTimber v[0-9.]+ enabled - felling on[.]' -Message 'AMCTimber enable receipt missing'
         Assert-Text -Text $logText -Pattern 'VCraftQABot.*ready' -Message 'VCraftQABot ready receipt missing'
+        if ($EventPolicyFixture) {
+            Assert-Text -Text $logText -Pattern 'AMCTimberE2EPolicy.*event policy fixture ready' -Message 'Policy fixture ready receipt missing'
+        }
         if ($logText -match '(?m)^.*Error occurred while enabling (?:AMCTimber|VCraftQABot).*$') {
             throw 'A tested plugin reported an enable failure'
         }
@@ -714,7 +752,7 @@ view-distance=4
             loopback_port = $port
             online_mode = $false
             instrumentation = @('VCraftQABot') + @($additionalPlugins | ForEach-Object { Split-Path -Leaf $_ })
-            test_overrides = @('debug=full')
+            test_overrides = @('debug=full') + $(if ($EventPolicyFixture) { @('event-policy-fixture') } else { @() })
         }
         artifacts = [ordered]@{
             amctimber_file = if ($null -ne $plugin) { Split-Path -Leaf $plugin } else { $null }
