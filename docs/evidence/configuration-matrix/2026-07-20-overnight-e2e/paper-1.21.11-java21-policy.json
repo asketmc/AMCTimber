@@ -1,0 +1,138 @@
+{
+    "schema":  "amctimber-gameplay-e2e-v1",
+    "result":  "passed",
+    "started_at":  "2026-07-20T01:16:36.3776018+00:00",
+    "ended_at":  "2026-07-20T01:18:59.1843657+00:00",
+    "duration_seconds":  142.807,
+    "fatal_error":  null,
+    "environment":  {
+                        "os":  "Microsoft Windows NT 10.0.19045.0",
+                        "java":  "openjdk version \"21.0.9\" 2025-10-21 LTS",
+                        "runtime":  "paper",
+                        "minecraft":  "1.21.11",
+                        "server_build":  "132",
+                        "server_url":  "https://fill-data.papermc.io/v1/objects/5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba/paper-1.21.11-132.jar",
+                        "server_sha256":  "5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba",
+                        "server_checksum_source":  "vendor_sha256",
+                        "loopback_port":  52461,
+                        "online_mode":  false,
+                        "instrumentation":  [
+                                                "VCraftQABot",
+                                                "AMCTimberEventPolicyFixture-0.1.0.jar"
+                                            ],
+                        "test_overrides":  [
+                                               "debug=full",
+                                               "event-policy-fixture"
+                                           ]
+                    },
+    "artifacts":  {
+                      "amctimber_file":  "AMCTimber-1.0.9.jar",
+                      "amctimber_sha256":  "5def03124020473ebb49fab5eaf872c6593aefac5a5262b0fbaf1d18dbd71496",
+                      "qabot_file":  "VCraftQABot-1.21.11-final.jar",
+                      "qabot_sha256":  "d63cf22597b5e01c76103260d4c39aee0531c0b279ad9c3dd4976fc34ec3fa3b",
+                      "additional_plugins":  [
+                                                 {
+                                                     "file":  "AMCTimberEventPolicyFixture-0.1.0.jar",
+                                                     "sha256":  "40f7619305380bbbca12dca0f4f4902fc812a26e698ceed3c94275bfdcc67563"
+                                                 }
+                                             ],
+                      "harness_sha256":  "9f08102e7a7b73bf55ede39d5f789c415a0bdf505dd0e249fef68abed05c1094",
+                      "latest_log_sha256":  "beb4d6dfee66c0ee1b91db232b57d76580b55035ad9384d5bafab0411d79244c"
+                  },
+    "counters":  {
+                     "discovered":  11,
+                     "passed":  11,
+                     "failed":  0,
+                     "skipped":  0
+                 },
+    "performance":  {
+                        "tps_1m":  19.97,
+                        "tps_5m":  19.97,
+                        "tps_15m":  19.97,
+                        "mspt":  1.19,
+                        "acceptance":  {
+                                           "minimum_tps":  19,
+                                           "maximum_mspt":  50
+                                       }
+                    },
+    "restart_recovery":  {
+                             "journal_schema":  "amctimber.pending-yield.v2",
+                             "journal_records":  1,
+                             "recovered_material":  "OAK_LOG",
+                             "recovered_amount":  3,
+                             "actor_retained":  true,
+                             "journal_sha256_before_restart":  "f90aef002943d0116bd2ff5a39f3b68d20f83bfde1290526f5694d34463a6b4a",
+                             "pre_restart_log_sha256":  "0ed2f846e1f45f4894befeb759fdb3bb11bf95fea6b6a94b78dbdc6beb068716"
+                         },
+    "resilience":  {
+                       "concurrency_time_budget_retries":  0
+                   },
+    "scenarios":  [
+                      {
+                          "id":  "runtime-selftest",
+                          "status":  "passed",
+                          "duration_ms":  674,
+                          "error":  null
+                      },
+                      {
+                          "id":  "qa-hooks-default-deny",
+                          "status":  "passed",
+                          "duration_ms":  47,
+                          "error":  null
+                      },
+                      {
+                          "id":  "sneak-bypass-vanilla-path",
+                          "status":  "passed",
+                          "duration_ms":  2232,
+                          "error":  null
+                      },
+                      {
+                          "id":  "player-build-rejected",
+                          "status":  "passed",
+                          "duration_ms":  1245,
+                          "error":  null
+                      },
+                      {
+                          "id":  "late-cancel-no-secondary-effects",
+                          "status":  "passed",
+                          "duration_ms":  1916,
+                          "error":  null
+                      },
+                      {
+                          "id":  "late-no-drop-no-secondary-effects",
+                          "status":  "passed",
+                          "duration_ms":  1871,
+                          "error":  null
+                      },
+                      {
+                          "id":  "oak-fell-chop-yield-cleanup",
+                          "status":  "passed",
+                          "duration_ms":  9028,
+                          "error":  null
+                      },
+                      {
+                          "id":  "jungle-2x2-vines-stump-yield-cleanup",
+                          "status":  "passed",
+                          "duration_ms":  10458,
+                          "error":  null
+                      },
+                      {
+                          "id":  "planned-restart-yield-recovery",
+                          "status":  "passed",
+                          "duration_ms":  27049,
+                          "error":  null
+                      },
+                      {
+                          "id":  "three-bot-concurrency-soak",
+                          "status":  "passed",
+                          "duration_ms":  48005,
+                          "error":  null
+                      },
+                      {
+                          "id":  "plugin-log-health",
+                          "status":  "passed",
+                          "duration_ms":  31,
+                          "error":  null
+                      }
+                  ]
+}

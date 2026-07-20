@@ -28,6 +28,9 @@ class ConfigurationMatrixPolicyTests(unittest.TestCase):
     def test_current_matrix_core_is_valid(self) -> None:
         self.assertEqual([], MODULE.validate_core(self.matrix))
 
+    def test_current_repository_evidence_is_valid(self) -> None:
+        self.assertEqual([], MODULE.validate_repository(self.matrix))
+
     def test_duplicate_row_fails_closed(self) -> None:
         candidate = deepcopy(self.matrix)
         candidate["rows"].append(deepcopy(candidate["rows"][0]))
@@ -57,6 +60,14 @@ class ConfigurationMatrixPolicyTests(unittest.TestCase):
             any("unsupported rows cannot claim" in error for error in MODULE.validate_core(candidate))
         )
 
+    def test_forward_canary_cannot_expand_supported_release_range(self) -> None:
+        candidate = deepcopy(self.matrix)
+        row = next(row for row in candidate["rows"] if row["row_type"] == "canary")
+        row["support"] = "supported"
+        self.assertTrue(
+            any("canary rows require forward_canary" in error for error in MODULE.validate_core(candidate))
+        )
+
     def test_markdown_renderer_matches_committed_table(self) -> None:
         document = MODULE.DOCUMENT_PATH.read_text(encoding="utf-8")
         actual = document.split(MODULE.BEGIN_MARKER, 1)[1].split(MODULE.END_MARKER, 1)[0].strip()
@@ -84,6 +95,50 @@ class ConfigurationMatrixPolicyTests(unittest.TestCase):
             self.assertTrue(
                 any("selftest count is empty" in error for error in MODULE.validate_receipt(path, self.matrix))
             )
+
+    def test_gameplay_receipt_rejects_zero_scenarios_and_wrong_candidate(self) -> None:
+        row = next(row for row in self.matrix["rows"] if row["gameplay_e2e"] == "verified")
+        entry = next(item for item in row["evidence"] if item["kind"] == "gameplay_receipt")
+        receipt = MODULE.read_json(ROOT / entry["path"])
+        receipt["artifacts"]["amctimber_sha256"] = "0" * 64
+        receipt["scenarios"] = []
+        receipt["counters"] = {"discovered": 0, "passed": 0, "failed": 0, "skipped": 0}
+        target = ROOT / "target"
+        target.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=target) as temporary:
+            path = Path(temporary) / "gameplay.json"
+            path.write_text(json.dumps(receipt), encoding="utf-8")
+            errors = MODULE.validate_gameplay_receipt(path, self.matrix, entry)
+        self.assertTrue(any("candidate artifact hash" in error for error in errors))
+        self.assertTrue(any("discovered no scenarios" in error for error in errors))
+
+    def test_gameplay_receipt_rejects_local_path_leak(self) -> None:
+        row = next(row for row in self.matrix["rows"] if row["gameplay_e2e"] == "verified")
+        entry = next(item for item in row["evidence"] if item["kind"] == "gameplay_receipt")
+        receipt = MODULE.read_json(ROOT / entry["path"])
+        receipt["artifacts"]["runtime_path"] = r"C:\\private\\server"
+        target = ROOT / "target"
+        target.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=target) as temporary:
+            path = Path(temporary) / "gameplay.json"
+            path.write_text(json.dumps(receipt), encoding="utf-8")
+            errors = MODULE.validate_gameplay_receipt(path, self.matrix, entry)
+        self.assertTrue(any("local path key" in error for error in errors))
+        self.assertTrue(any("absolute local paths" in error for error in errors))
+
+    def test_campaign_manifest_rejects_tampered_receipt_hash(self) -> None:
+        manifest_path = ROOT / self.matrix["campaign_manifest"]
+        manifest = MODULE.read_json(manifest_path)
+        receipt_path = manifest_path.parent / manifest["receipts"][0]["path"]
+        manifest["receipts"][0]["path"] = str(receipt_path.resolve())
+        manifest["receipts"][0]["sha256"] = "0" * 64
+        target = ROOT / "target"
+        target.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=target) as temporary:
+            path = Path(temporary) / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            errors = MODULE.validate_campaign_manifest(path, self.matrix)
+        self.assertTrue(any("receipt hash does not match" in error for error in errors))
 
 
 if __name__ == "__main__":

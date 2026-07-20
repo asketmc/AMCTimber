@@ -7,6 +7,15 @@
     "artifact": "AMCTimber-1.0.9.jar",
     "sha256": "dc398d13f99b15c88b500324fef3282f2374c28452b13f47f49fd8d36fdc9e6c"
   },
+  "gameplay_candidate": {
+    "implementation_commit": "e4cef48e17106d0fc5fc24e768db1c8d92efdd3f",
+    "harness_commit": "d1d9c0ee4ab7e483825f1f1969352a4843c4c9cb",
+    "artifact": "AMCTimber-1.0.9.jar",
+    "sha256": "5def03124020473ebb49fab5eaf872c6593aefac5a5262b0fbaf1d18dbd71496",
+    "qabot_source_commit": "fb16e86441bbe54c15cd656a6606e5e2022e1337",
+    "qabot_production_sha256": "d63cf22597b5e01c76103260d4c39aee0531c0b279ad9c3dd4976fc34ec3fa3b"
+  },
+  "campaign_manifest": "docs/evidence/configuration-matrix/2026-07-20-overnight-e2e/manifest.json",
   "support_contract": {
     "server_software": [
       "Paper",
@@ -30,7 +39,8 @@
     ],
     "java": "21+",
     "verified_java": [
-      "21"
+      "21",
+      "25"
     ],
     "optional_integrations": [
       "WorldGuard",
@@ -44,14 +54,29 @@
       "paper",
       "purpur"
     ],
-    "distribution_note": "Modrinth has no Pufferfish loader tag; Pufferfish remains an unverified Paper-compatible runtime claim."
+    "distribution_note": "Modrinth has no Pufferfish loader tag. Exact Pufferfish 1.21.10 candidate evidence exists; the remainder of the claimed Pufferfish range stays explicit as a gap."
   },
   "coverage_levels": {
     "system_smoke": "Real server process loads the built or published JAR, runs a non-zero selftest, and shuts down cleanly.",
-    "gameplay_e2e": "A real player and world exercise the complete fell, topple, cleanup, stump, yield, and protection path.",
+    "gameplay_e2e": "Real protocol clients and a real world exercise complete fell, topple, cleanup, stump, exact-yield, protection, recovery, and concurrency paths.",
     "post_deployment": "The public release artifact is downloaded from the distribution channel, checksum-verified, and executed after publication."
   },
   "representative_environments": [
+    {
+      "id": "local-gameplay-candidate",
+      "purpose": "Representative gameplay, recovery, policy, concurrency, performance, runtime-fork, Java, and forward-canary verification",
+      "os": "Windows 10 22H2 disposable loopback runtimes",
+      "java": "Temurin 21.0.9+10 and Temurin 25.0.3+9",
+      "server": "Checksum-bound Paper, Purpur, and Pufferfish builds downloaded from official project endpoints",
+      "plugin_configuration": "locally built candidate; packaged defaults except debug evidence and explicitly named fixtures",
+      "integrations": [
+        "VCraftQABot protocol clients",
+        "ViaVersion 5.11.0 on the explicit Paper 1.20.6 fixture",
+        "late block event-policy fixture on the explicit Paper 1.21.11 policy row"
+      ],
+      "server_profile": "isolated temporary directory, loopback-only, offline mode, bounded ports and timeouts, deterministic flat world",
+      "limitations": "Local candidate evidence is not post-deployment evidence and does not certify untested versions, WorldGuard, Towny, proxy/authentication, WAN, or rendering."
+    },
     {
       "id": "paper-ci-baseline",
       "purpose": "Minimum/latest Paper startup compatibility",
@@ -105,14 +130,6 @@
           "url": "https://github.com/asketmc/AMCTimber/actions/runs/29467341360"
         },
         {
-          "kind": "workflow",
-          "label": "post-release runtime workflow",
-          "covers": [
-            "post_deployment"
-          ],
-          "path": ".github/workflows/post-release-runtime.yml"
-        },
-        {
           "kind": "repository_receipt",
           "label": "v1.0.9 post-release runtime receipt",
           "covers": [
@@ -123,6 +140,78 @@
       ]
     },
     {
+      "id": "paper-1.20.6-java21-viaversion-fixture",
+      "row_type": "integration",
+      "runtime": "Paper",
+      "minecraft": "1.20.6",
+      "java": "21",
+      "configuration": "ViaVersion 5.11.0 test transport; otherwise candidate defaults",
+      "support": "optional",
+      "system_smoke": "verified",
+      "gameplay_e2e": "verified",
+      "post_deployment": "gap",
+      "evidence": [
+        {
+          "kind": "gameplay_receipt",
+          "label": "local candidate gameplay receipt",
+          "covers": [
+            "system_smoke",
+            "gameplay_e2e"
+          ],
+          "expected_environment": {
+            "runtime": "paper",
+            "minecraft": "1.20.6",
+            "java_major": 21,
+            "required_instrumentation": [
+              "ViaVersion-5.11.0.jar"
+            ]
+          },
+          "path": "docs/evidence/configuration-matrix/2026-07-20-overnight-e2e/paper-1.20.6-java21-viaversion.json"
+        }
+      ]
+    },
+    {
+      "id": "paper-1.21.7-java21-default",
+      "row_type": "runtime",
+      "runtime": "Paper",
+      "minecraft": "1.21.7",
+      "java": "21",
+      "configuration": "candidate defaults; no optional integrations",
+      "support": "supported",
+      "system_smoke": "verified",
+      "gameplay_e2e": "verified",
+      "post_deployment": "gap",
+      "evidence": [
+        {
+          "kind": "gameplay_receipt",
+          "label": "local candidate gameplay receipt",
+          "covers": [
+            "system_smoke",
+            "gameplay_e2e"
+          ],
+          "expected_environment": {
+            "runtime": "paper",
+            "minecraft": "1.21.7",
+            "java_major": 21
+          },
+          "path": "docs/evidence/configuration-matrix/2026-07-20-overnight-e2e/paper-1.21.7-java21.json"
+        }
+      ]
+    },
+    {
+      "id": "paper-other-intermediate-java21-default",
+      "row_type": "runtime",
+      "runtime": "Paper",
+      "minecraft": "1.21-1.21.6 and 1.21.8-1.21.10",
+      "java": "21",
+      "configuration": "defaults; no optional integrations",
+      "support": "supported",
+      "system_smoke": "gap",
+      "gameplay_e2e": "gap",
+      "post_deployment": "gap",
+      "evidence": []
+    },
+    {
       "id": "paper-1.21.11-java21-default",
       "row_type": "runtime",
       "runtime": "Paper",
@@ -131,7 +220,7 @@
       "configuration": "defaults; no optional integrations",
       "support": "supported",
       "system_smoke": "verified",
-      "gameplay_e2e": "gap",
+      "gameplay_e2e": "verified",
       "post_deployment": "verified",
       "evidence": [
         {
@@ -143,20 +232,18 @@
           "url": "https://github.com/asketmc/AMCTimber/actions/runs/29511517489"
         },
         {
-          "kind": "github_actions_run",
-          "label": "exact v1.0.9 pre-publication smoke",
+          "kind": "gameplay_receipt",
+          "label": "local candidate 10-cycle soak receipt",
           "covers": [
-            "system_smoke"
+            "system_smoke",
+            "gameplay_e2e"
           ],
-          "url": "https://github.com/asketmc/AMCTimber/actions/runs/29467341360"
-        },
-        {
-          "kind": "workflow",
-          "label": "post-release runtime workflow",
-          "covers": [
-            "post_deployment"
-          ],
-          "path": ".github/workflows/post-release-runtime.yml"
+          "expected_environment": {
+            "runtime": "paper",
+            "minecraft": "1.21.11",
+            "java_major": 21
+          },
+          "path": "docs/evidence/configuration-matrix/2026-07-20-overnight-e2e/paper-1.21.11-java21-soak10.json"
         },
         {
           "kind": "repository_receipt",
@@ -169,23 +256,73 @@
       ]
     },
     {
-      "id": "paper-intermediate-1.21-java21-default",
-      "row_type": "runtime",
+      "id": "paper-1.21.11-java21-event-policy",
+      "row_type": "integration",
       "runtime": "Paper",
-      "minecraft": "1.21-1.21.10 intermediate patches",
+      "minecraft": "1.21.11",
       "java": "21",
-      "configuration": "defaults; no optional integrations",
-      "support": "supported",
-      "system_smoke": "gap",
-      "gameplay_e2e": "gap",
+      "configuration": "late cancellation and dropItems=false policy fixture",
+      "support": "optional",
+      "system_smoke": "verified",
+      "gameplay_e2e": "verified",
       "post_deployment": "gap",
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "gameplay_receipt",
+          "label": "local candidate event-policy receipt",
+          "covers": [
+            "system_smoke",
+            "gameplay_e2e"
+          ],
+          "expected_environment": {
+            "runtime": "paper",
+            "minecraft": "1.21.11",
+            "java_major": 21,
+            "required_instrumentation": [
+              "AMCTimberEventPolicyFixture-0.1.0.jar"
+            ],
+            "required_scenarios": [
+              "late-cancel-no-secondary-effects",
+              "late-no-drop-no-secondary-effects"
+            ]
+          },
+          "path": "docs/evidence/configuration-matrix/2026-07-20-overnight-e2e/paper-1.21.11-java21-policy.json"
+        }
+      ]
     },
     {
-      "id": "purpur-supported-range-java21-default",
+      "id": "purpur-1.21.11-java21-default",
       "row_type": "runtime",
       "runtime": "Purpur",
-      "minecraft": "1.20.6-1.21.11",
+      "minecraft": "1.21.11",
+      "java": "21",
+      "configuration": "candidate defaults; no optional integrations",
+      "support": "supported",
+      "system_smoke": "verified",
+      "gameplay_e2e": "verified",
+      "post_deployment": "gap",
+      "evidence": [
+        {
+          "kind": "gameplay_receipt",
+          "label": "local candidate gameplay receipt",
+          "covers": [
+            "system_smoke",
+            "gameplay_e2e"
+          ],
+          "expected_environment": {
+            "runtime": "purpur",
+            "minecraft": "1.21.11",
+            "java_major": 21
+          },
+          "path": "docs/evidence/configuration-matrix/2026-07-20-overnight-e2e/purpur-1.21.11-java21.json"
+        }
+      ]
+    },
+    {
+      "id": "purpur-other-supported-range-java21-default",
+      "row_type": "runtime",
+      "runtime": "Purpur",
+      "minecraft": "1.20.6-1.21.10",
       "java": "21",
       "configuration": "defaults; no optional integrations",
       "support": "supported",
@@ -195,10 +332,38 @@
       "evidence": []
     },
     {
-      "id": "pufferfish-supported-range-java21-default",
+      "id": "pufferfish-1.21.10-java21-default",
       "row_type": "runtime",
       "runtime": "Pufferfish",
-      "minecraft": "1.20.6-1.21.11",
+      "minecraft": "1.21.10",
+      "java": "21",
+      "configuration": "candidate defaults; no optional integrations",
+      "support": "supported",
+      "system_smoke": "verified",
+      "gameplay_e2e": "verified",
+      "post_deployment": "gap",
+      "evidence": [
+        {
+          "kind": "gameplay_receipt",
+          "label": "local candidate gameplay receipt",
+          "covers": [
+            "system_smoke",
+            "gameplay_e2e"
+          ],
+          "expected_environment": {
+            "runtime": "pufferfish",
+            "minecraft": "1.21.10",
+            "java_major": 21
+          },
+          "path": "docs/evidence/configuration-matrix/2026-07-20-overnight-e2e/pufferfish-1.21.10-java21.json"
+        }
+      ]
+    },
+    {
+      "id": "pufferfish-other-supported-range-java21-default",
+      "row_type": "runtime",
+      "runtime": "Pufferfish",
+      "minecraft": "1.20.6-1.21.9 and 1.21.11",
       "java": "21",
       "configuration": "defaults; no optional integrations",
       "support": "supported",
@@ -208,12 +373,34 @@
       "evidence": []
     },
     {
-      "id": "supported-runtime-worldguard-towny",
+      "id": "supported-runtime-worldguard",
       "row_type": "integration",
       "runtime": "supported runtimes",
       "minecraft": "1.20.6-1.21.11",
       "java": "21",
-      "configuration": "WorldGuard, Towny, or both",
+      "configuration": "WorldGuard enabled",
+      "support": "optional",
+      "system_smoke": "unit_only",
+      "gameplay_e2e": "gap",
+      "post_deployment": "gap",
+      "evidence": [
+        {
+          "kind": "repository_tests",
+          "label": "protection contract tests",
+          "covers": [
+            "system_smoke"
+          ],
+          "path": "src/test/java/com/asketmc/timber/ProtectionTest.java"
+        }
+      ]
+    },
+    {
+      "id": "supported-runtime-towny",
+      "row_type": "integration",
+      "runtime": "supported runtimes",
+      "minecraft": "1.20.6-1.21.11",
+      "java": "21",
+      "configuration": "Towny enabled",
       "support": "optional",
       "system_smoke": "unit_only",
       "gameplay_e2e": "gap",
@@ -252,17 +439,73 @@
       ]
     },
     {
-      "id": "supported-runtime-java-newer-than-21",
+      "id": "paper-1.21.11-java25-default",
+      "row_type": "java",
+      "runtime": "Paper",
+      "minecraft": "1.21.11",
+      "java": "25",
+      "configuration": "candidate defaults; no optional integrations",
+      "support": "supported",
+      "system_smoke": "verified",
+      "gameplay_e2e": "verified",
+      "post_deployment": "gap",
+      "evidence": [
+        {
+          "kind": "gameplay_receipt",
+          "label": "local candidate Java 25 gameplay receipt",
+          "covers": [
+            "system_smoke",
+            "gameplay_e2e"
+          ],
+          "expected_environment": {
+            "runtime": "paper",
+            "minecraft": "1.21.11",
+            "java_major": 25
+          },
+          "path": "docs/evidence/configuration-matrix/2026-07-20-overnight-e2e/paper-1.21.11-java25.json"
+        }
+      ]
+    },
+    {
+      "id": "supported-runtime-other-java-newer-than-21",
       "row_type": "java",
       "runtime": "supported runtimes",
       "minecraft": "1.20.6-1.21.11",
-      "java": ">21",
+      "java": ">21 except exact Java 25 row",
       "configuration": "defaults",
       "support": "supported",
       "system_smoke": "gap",
       "gameplay_e2e": "gap",
       "post_deployment": "gap",
       "evidence": []
+    },
+    {
+      "id": "paper-26.1.2-java25-forward-canary",
+      "row_type": "canary",
+      "runtime": "Paper",
+      "minecraft": "26.1.2",
+      "java": "25",
+      "configuration": "forward-compatibility canary; outside supported release range",
+      "support": "forward_canary",
+      "system_smoke": "verified",
+      "gameplay_e2e": "verified",
+      "post_deployment": "not_applicable",
+      "evidence": [
+        {
+          "kind": "gameplay_receipt",
+          "label": "local candidate Minecraft 26.1.2 canary receipt",
+          "covers": [
+            "system_smoke",
+            "gameplay_e2e"
+          ],
+          "expected_environment": {
+            "runtime": "paper",
+            "minecraft": "26.1.2",
+            "java_major": 25
+          },
+          "path": "docs/evidence/configuration-matrix/2026-07-20-overnight-e2e/paper-26.1.2-java25-canary.json"
+        }
+      ]
     },
     {
       "id": "spigot-unsupported",
