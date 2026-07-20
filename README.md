@@ -158,9 +158,9 @@ xp:
 ```yaml
 detection:
   protection-error-policy: deny   # deny | allow
-  max-attempt-micros: 2500
+  max-attempt-micros: 10000
   max-protection-hook-calls: 4096
-  max-attempts-per-tick: 4
+  max-attempts-per-tick: 3
   attempt-cooldown-ticks: 4
 
 runtime-work:
@@ -262,6 +262,14 @@ Automated layers:
 - **Post-deployment runtime check** — `scripts/verify-published-release-runtime.sh` downloads the public
   release JAR and checksum, then repeats both Paper endpoint smokes. It emits a hash-bound JSON receipt;
   this remains a system smoke and is not labelled gameplay E2E.
+- **Local gameplay E2E** — `scripts/e2e-gameplay.ps1` drives real VCraftQABot players through default-deny
+  QA guards, vanilla sneak bypass, player-build rejection, oak and 2×2 jungle felling, exact yield,
+  entity cleanup, planned-restart journal recovery, and a three-player concurrency/TPS check. It runs
+  locally on Paper, Purpur, or Pufferfish and emits hash-bound fail-closed JSON receipts; it is intentionally
+  not scheduled on hosted GitHub runners. The optional test-only `qa/event-policy-fixture` adds real
+  late cancellation and no-drop event-policy assertions without entering the release JAR.
+  Concurrent setup may retry once per tree only after an exact, logged `attempt-time-budget` fail-closed
+  fallback; the receipt exposes the retry count and every other rejection remains a failure.
 - **Configuration coverage contract** — [docs/CONFIGURATION_MATRIX.md](docs/CONFIGURATION_MATRIX.md) and
   its machine-readable JSON distinguish supported, advertised, tested, and explicitly missing rows.
 - **Audited boundary regression gate** — `scripts/check-runtime-security.py` fails CI if the concrete

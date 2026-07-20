@@ -3,6 +3,7 @@
 This matrix maps AMCTimber's highest-risk behavior to automated evidence. It is a QA control, not a
 security certification. Statuses are intentionally conservative:
 
+- `verified` means a fail-closed runtime receipt is committed and hash-bound to the tested artifact.
 - `implemented` means the listed gate currently runs in CI.
 - `partial` means there is meaningful automated evidence, but a live Paper/Purpur/Pufferfish smoke test or
   deeper harness is still needed.
@@ -22,10 +23,10 @@ The machine-readable mapping lives beside this document in `docs/p0-test-matrix.
 | P0-008 | Runtime process exec/native load/classloader/network behavior | `scripts/check-runtime-surface.sh` and Semgrep rules cover configured source patterns; review remains scoped to those rules | Reviewer Evidence + Semgrep | implemented |
 | P0-009 | XP bridge runs when disabled | `XpBridgeTest.grantDoesNotTouchPlayerOrSchedulerWhenDisabled`; `TimberConfigTest.xpBridgeCanBeDisabledInConfig` | unit + P0 tagged tests | implemented |
 | P0-010 | Paper boundary-version startup/selftest/shutdown or public-artifact regression | `Paper Runtime Smoke` covers the built JAR; release publication covers the prepared JAR; `verify-published-release-runtime.sh` downloads the public JAR, verifies its checksum, repeats both endpoints, requires a non-zero selftest, and emits a receipt | Paper Runtime Smoke + post-release runtime verification | implemented |
-| P0-011 | QA mutation hooks exposed in normal operation | `qa.commands-enabled` defaults to false and QA commands use the separate `amctimber.qa` permission; command-level runtime smoke is not automated | unit/config tests; planned runtime smoke | partial |
-| P0-012 | Purpur/Pufferfish, intermediate 1.21 patch, or gameplay-path runtime regression | The Paper endpoint smoke does not exercise these runtimes or a full fell/chop/protection scenario | planned runtime smoke/E2E | planned |
+| P0-011 | QA mutation hooks exposed in normal operation | `qa.commands-enabled` defaults to false and QA commands use the separate `amctimber.qa` permission; every committed gameplay receipt asserts default denial before explicitly enabling its isolated test path | unit/config tests + local gameplay receipts | verified |
+| P0-012 | Purpur/Pufferfish, intermediate 1.21 patch, or gameplay-path runtime regression | Hash-bound local receipts execute full gameplay on Paper 1.21.7/1.21.11, Purpur 1.21.11, Pufferfish 1.21.10, Java 21/25, and Paper 26.1.2 canary; untested range rows remain explicit gaps | local gameplay matrix + receipt validator | partial |
 | P0-013 | Fallen `BlockDisplay` renders black because light is sampled inside terrain | `ToppleAnimatorMathTest.lightAnchor_sitsAboveTheRenderedBlockAndPreservesEveryVertex` proves that the logical light anchor is above the visible block and that rebasing does not move any model vertex; the runtime selftest checks the same contract, but arbitrary client shader packs are not visually automated | unit + P0 tagged tests + Paper selftest; manual shader visual check | partial |
-| P0-014 | Block-break cancellation/no-drop or combat-policy bypass | `scripts/check-runtime-security.py` locks final-state/drop ordering and source-attributed damage; unit budget tests cover downstream bounded paths, but a later-listener/combat-canceller Paper fixture is not automated | CI invariant gate; planned gameplay fixture | partial |
+| P0-014 | Block-break cancellation/no-drop or combat-policy bypass | `scripts/check-runtime-security.py` locks final-state/drop ordering and source-attributed damage; the Paper policy receipt proves a later listener's cancellation and `dropItems=false` suppress all secondary effects; a live combat canceller remains absent | CI invariant gate + local event-policy receipt | partial |
 
 ## Current Gate
 

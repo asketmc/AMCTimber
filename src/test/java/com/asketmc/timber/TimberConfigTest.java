@@ -95,6 +95,8 @@ class TimberConfigTest {
         assertTrue(!cfg.xpEnabled);
         assertTrue(cfg.maxHits >= cfg.hitsToFell);
         assertTrue(cfg.leaveStump && cfg.leafLoot && cfg.sneakBypass && cfg.crushEnabled);
+        assertEquals(10_000, cfg.maxAttemptMicros);
+        assertEquals(3, cfg.maxScanAttemptsPerTick);
     }
 
     @Test

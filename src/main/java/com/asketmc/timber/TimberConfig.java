@@ -150,11 +150,11 @@ final class TimberConfig {
         this.wildOnly = c.getBoolean("detection.wild-only", true);
         this.maxHorizontalLogSpan = clampInt(c.getInt("detection.max-horizontal-log-span", 16), 4, 64);
         this.maxScanReads = clampInt(c.getInt("detection.max-scan-reads", 100_000), 1_000, MAX_SCAN_READS_CAP);
-        this.maxAttemptMicros = clampInt(c.getInt("detection.max-attempt-micros", 2_500),
+        this.maxAttemptMicros = clampInt(c.getInt("detection.max-attempt-micros", 10_000),
                 250, MAX_ATTEMPT_MICROS_CAP);
         this.maxProtectionHookCalls = clampInt(c.getInt("detection.max-protection-hook-calls", 4_096),
                 1, MAX_PROTECTION_HOOK_CALLS_CAP);
-        this.maxScanAttemptsPerTick = clampInt(c.getInt("detection.max-attempts-per-tick", 4), 1, 64);
+        this.maxScanAttemptsPerTick = clampInt(c.getInt("detection.max-attempts-per-tick", 3), 1, 64);
         this.scanAttemptCooldownTicks = clampInt(c.getInt("detection.attempt-cooldown-ticks", 4), 0, 100);
         this.extraNatural = parseMaterials(c.getStringList("detection.extra-natural"));
 

@@ -1,0 +1,118 @@
+{
+    "schema":  "amctimber-gameplay-e2e-v1",
+    "result":  "passed",
+    "started_at":  "2026-07-20T01:08:10.0886046+00:00",
+    "ended_at":  "2026-07-20T01:09:44.6429737+00:00",
+    "duration_seconds":  94.554,
+    "fatal_error":  null,
+    "environment":  {
+                        "os":  "Microsoft Windows NT 10.0.19045.0",
+                        "java":  "openjdk version \"25.0.3\" 2026-04-21 LTS",
+                        "runtime":  "paper",
+                        "minecraft":  "26.1.2",
+                        "server_build":  "74",
+                        "server_url":  "https://fill-data.papermc.io/v1/objects/1d70b1dab9cf4a6de615209a536f3a45a2186240253c428213ce2188ab95e5f7/paper-26.1.2-74.jar",
+                        "server_sha256":  "1d70b1dab9cf4a6de615209a536f3a45a2186240253c428213ce2188ab95e5f7",
+                        "server_checksum_source":  "vendor_sha256",
+                        "loopback_port":  60940,
+                        "online_mode":  false,
+                        "instrumentation":  [
+                                                "VCraftQABot"
+                                            ],
+                        "test_overrides":  [
+                                               "debug=full"
+                                           ]
+                    },
+    "artifacts":  {
+                      "amctimber_file":  "AMCTimber-1.0.9.jar",
+                      "amctimber_sha256":  "5def03124020473ebb49fab5eaf872c6593aefac5a5262b0fbaf1d18dbd71496",
+                      "qabot_file":  "VCraftQABot-26.1-final.jar",
+                      "qabot_sha256":  "bb5374d5d17efa2ca774ff9f940825e824efcbd958f684b1eaa062c853eb600a",
+                      "additional_plugins":  [
+
+                                             ],
+                      "harness_sha256":  "5da43bdc60ee4fc06b0daf559c36e98df387d98a4e0d3ab1af2d3ff5f388ef90",
+                      "latest_log_sha256":  "9428ed1ddfcaf21bdda5de293af12baefa1bbccac264fda345ae434c465370f2"
+                  },
+    "counters":  {
+                     "discovered":  9,
+                     "passed":  9,
+                     "failed":  0,
+                     "skipped":  0
+                 },
+    "performance":  {
+                        "tps_1m":  19.91,
+                        "tps_5m":  19.91,
+                        "tps_15m":  19.91,
+                        "mspt":  3.02,
+                        "acceptance":  {
+                                           "minimum_tps":  19,
+                                           "maximum_mspt":  50
+                                       }
+                    },
+    "restart_recovery":  {
+                             "journal_schema":  "amctimber.pending-yield.v2",
+                             "journal_records":  1,
+                             "recovered_material":  "OAK_LOG",
+                             "recovered_amount":  3,
+                             "actor_retained":  true,
+                             "journal_sha256_before_restart":  "749abb125f363604d79512907f8d5733bb8012b86691339af7ca71eedc2a0f09",
+                             "pre_restart_log_sha256":  "68487bfe45efd7451abec9081e77d4b2e8c5df9a8b578177e46a31b24b2bc39b"
+                         },
+    "scenarios":  [
+                      {
+                          "id":  "runtime-selftest",
+                          "status":  "passed",
+                          "duration_ms":  240,
+                          "error":  null
+                      },
+                      {
+                          "id":  "qa-hooks-default-deny",
+                          "status":  "passed",
+                          "duration_ms":  228,
+                          "error":  null
+                      },
+                      {
+                          "id":  "sneak-bypass-vanilla-path",
+                          "status":  "passed",
+                          "duration_ms":  2224,
+                          "error":  null
+                      },
+                      {
+                          "id":  "player-build-rejected",
+                          "status":  "passed",
+                          "duration_ms":  1253,
+                          "error":  null
+                      },
+                      {
+                          "id":  "oak-fell-chop-yield-cleanup",
+                          "status":  "passed",
+                          "duration_ms":  8821,
+                          "error":  null
+                      },
+                      {
+                          "id":  "jungle-2x2-vines-stump-yield-cleanup",
+                          "status":  "passed",
+                          "duration_ms":  10559,
+                          "error":  null
+                      },
+                      {
+                          "id":  "planned-restart-yield-recovery",
+                          "status":  "passed",
+                          "duration_ms":  23513,
+                          "error":  null
+                      },
+                      {
+                          "id":  "three-bot-concurrency-soak",
+                          "status":  "passed",
+                          "duration_ms":  17905,
+                          "error":  null
+                      },
+                      {
+                          "id":  "plugin-log-health",
+                          "status":  "passed",
+                          "duration_ms":  20,
+                          "error":  null
+                      }
+                  ]
+}

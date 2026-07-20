@@ -1,0 +1,37 @@
+{
+  "schema": "amctimber-local-e2e-campaign-v1",
+  "campaign_date": "2026-07-20",
+  "execution_surface": "local Windows disposable loopback runtimes",
+  "github_actions_minutes_used": 0,
+  "candidate": {
+    "implementation_commit": "e4cef48e17106d0fc5fc24e768db1c8d92efdd3f",
+    "harness_commit": "d1d9c0ee4ab7e483825f1f1969352a4843c4c9cb",
+    "artifact": "AMCTimber-1.0.9.jar",
+    "sha256": "5def03124020473ebb49fab5eaf872c6593aefac5a5262b0fbaf1d18dbd71496"
+  },
+  "qabot": {
+    "source_commit": "fb16e86441bbe54c15cd656a6606e5e2022e1337",
+    "production_artifact_sha256": "d63cf22597b5e01c76103260d4c39aee0531c0b279ad9c3dd4976fc34ec3fa3b"
+  },
+  "local_quality_gate": {
+    "unit_tests": 93,
+    "unit_failures": 0,
+    "p0_tests": 38,
+    "p0_failures": 0,
+    "jacoco_scoped_gate": "passed",
+    "pit_mutations_generated": 68,
+    "pit_mutations_killed": 58,
+    "pit_mutation_score_percent": 85,
+    "pit_test_strength_percent": 94
+  },
+  "receipts": [
+    {"path": "paper-1.20.6-java21-viaversion.json", "sha256": "44d5328ca4b09612fe70248fb8791c0a1c18748c0f03cef7e6c27193457ea556"},
+    {"path": "paper-1.21.7-java21.json", "sha256": "f40c36fad9776cee9990fd80c9977fa2c3c82ed683b74b2a56f08ca3334f8530"},
+    {"path": "paper-1.21.11-java21-soak10.json", "sha256": "384b2e3e027d94f2895e6c74820b460e73f580d3c44e3a4cdb7a0cc2cfe4b6a8"},
+    {"path": "paper-1.21.11-java21-policy.json", "sha256": "c55840f8eeedd32d06cdea711a0e4bd053a568ef677329baea6a9f1b82e4b027"},
+    {"path": "purpur-1.21.11-java21.json", "sha256": "7b971d922d804f45561d60b47f2312d6ed071c269ca5a888b477520ca59a8704"},
+    {"path": "pufferfish-1.21.10-java21.json", "sha256": "ae0bcbca48e16229a517845452d84ecd88ad7f67f869a33de1b8ba6300b5d050"},
+    {"path": "paper-1.21.11-java25.json", "sha256": "ac08c7e11a82374b500613232775bdb8ab327881922b78fb87fcae32001bc1b4"},
+    {"path": "paper-26.1.2-java25-canary.json", "sha256": "5cd1c19ba8a16be51706a419e7c979fe156c14cb63c969eca3d159167314b9a1"}
+  ]
+}

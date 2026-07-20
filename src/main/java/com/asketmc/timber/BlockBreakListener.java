@@ -41,12 +41,20 @@ final class BlockBreakListener implements Listener {
         if (cfg.sneakBypass && player.isSneaking()) return;
         ItemStack hand = player.getInventory().getItemInMainHand();
         if (cfg.requireAxe && !Tools.isAxe(hand, cfg)) return;
-        if (!plugin.attemptAdmission().tryAcquire(player.getUniqueId())) return;
+        if (!plugin.attemptAdmission().tryAcquire(player.getUniqueId())) {
+            plugin.debug().full("fell rejected: attempt admission cooldown/cap for " + player.getName());
+            return;
+        }
 
         double[] direction = TreeScanner.fallDir(player.getLocation(), block.getX(), block.getZ());
         TreeShape shape = plugin.scanner().scan(block, direction[0], direction[1],
                 FellAttemptBudget.from(cfg));
-        if (!shape.isTree) return;
+        if (!shape.isTree) {
+            plugin.debug().full("fell rejected: " + shape.rejectReason + " at "
+                    + block.getX() + "," + block.getY() + "," + block.getZ()
+                    + " logs=" + shape.logCount());
+            return;
+        }
         pending.put(event, new PreparedFell(plugin.runtime(), shape));
     }
 

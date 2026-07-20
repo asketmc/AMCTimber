@@ -4,7 +4,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$Selector,
     [Parameter(Mandatory = $true)][string]$PluginJar,
-    [Parameter(Mandatory = $true)][string]$LogDir
+    [Parameter(Mandatory = $true)][string]$LogDir,
+    [string]$JavaExecutable = 'java.exe'
 )
 
 Set-StrictMode -Version Latest
@@ -74,7 +75,7 @@ function Get-StableBuild {
 }
 
 try {
-    if ($Selector -ne 'latest-1.21' -and $Selector -notmatch '^1[.]20[.]6$') {
+    if ($Selector -ne 'latest-1.21' -and $Selector -notmatch '^(?:1[.]20[.]6|26[.]1(?:[.]\d+)?)$') {
         throw "Unsupported Paper selector: $Selector"
     }
 
@@ -162,7 +163,7 @@ view-distance=2
 '@
     [IO.File]::WriteAllText((Join-Path $runtime 'server.properties'), $properties)
 
-    $javaCommand = Get-Command java.exe -ErrorAction Stop
+    $javaCommand = Get-Command $JavaExecutable -ErrorAction Stop
     if ($javaCommand.Source.Contains('"')) {
         throw 'Java path contains an unsupported quote character'
     }
