@@ -50,9 +50,9 @@ detection:
                            # placement authorship cannot be guaranteed without a block-history provider.
   max-horizontal-log-span: 16 # reject suspicious same-species log bridges wider than this
   max-scan-reads: 100000   # cached reads in already-loaded chunks; clamped to 1000..250000
-  max-attempt-micros: 2500 # fail closed when one scan/protection stage exceeds this main-thread deadline
+  max-attempt-micros: 10000 # cold scans get one bounded 10ms window
   max-protection-hook-calls: 4096 # hard per-stage cap across all installed protection integrations
-  max-attempts-per-tick: 4 # global ordinary-player scan admissions; coordinated players share this cap
+  max-attempts-per-tick: 3 # global cap keeps worst-case scan time to 30ms/tick
   attempt-cooldown-ticks: 4 # per-player delay between expensive scan admissions
   extra-natural: []        # escape hatch: extra block names to also count as natural, e.g. [TUFF, COBBLESTONE]
 
